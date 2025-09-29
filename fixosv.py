@@ -1,8 +1,7 @@
 # MOTHER 3 OSV to MSGS
 
 import os, shutil
-from mido import MidiFile, MidiTrack, Message, open_output, get_output_names
-from mido.frozen import freeze_message, thaw_message
+from mido import MidiFile, MidiTrack, Message
 
 os.system('cls')
 print("MOTHER 3 OSV to MSGS\n")
@@ -13,7 +12,10 @@ CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
 # flags
-INSTANT_CUT = False
+SKIP_REPLACE = False
+SKIP_TWEAKS  = False
+GM_EXTEND    = True
+INSTANT_CUT  = True
 
 # def TOGGLE_DRUMS(chan, on):
 #     xx = 0x11 + chan
@@ -35,11 +37,10 @@ if os.path.exists(target_dir):
 shutil.copytree(source_dir, target_dir)
 
 inst_replace = {
-    0: (16, 0), # detuned (?)
-    11: 0,
-    1: (3, 122), # wind
+     0: (16, 0), # detuned (?)
+    11: (16, 0),
+     1: (3, 122), # wind
     61: 60, # french horns
-    # 69: 60, # french horns WHAT?? don't know what this is doing here, this is supposed to be a guitar chord
     66: 65, # replace sax
      3: 88, # synth min
      6: 88, # synth maj
@@ -92,7 +93,17 @@ drums_remap = {
         one down, a few to go: 11, 22, 67, 69, 109??
  
         "Welcome!" needs a lot of instruments fixed
+
+        haven't been writing this down but I've been reworking the event skip system and
+        have decided on dropping it altogether in favor of altered track reconstruction
+
+        there's slowdowns near chords now?
+        No longer! :D
+
+        let's keep working on those chords ..zZz
+        11, || 22, 67, 69, 109
 """
+
 inst_name = (
     "Acoustic Grand Piano",
     "Bright Acoustic Piano",
@@ -233,48 +244,44 @@ for file in os.listdir(directory):
     if filename.endswith(".mid"): 
         mid = MidiFile(target_dir + filename)
 
-        for track in mid.tracks:
-            new = MidiTrack()
+        for og_track in mid.tracks:
+            track = MidiTrack()
             altered = False
-            extended = False
+            extended = not GM_EXTEND
             bank_switch = False
             
-            og_chan_prog = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
-            chan_prog    = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
-            chan_bank    = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+            orig_prog = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+            chan_prog = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+            chan_bank = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
 
             tweaked = False
 
-            skip_msgs = []
-            def queue_skip(msg):
-                skip_msgs.append(msg)
-                return msg
+            for msg in og_track:
+                msg_queue = []
+                def queue(msg):
+                    msg_queue.append(msg)
+                    return msg
+                def flush():
+                    track.extend(msg_queue)
+                    msg_queue.clear()
+                def queue_and_flush(msg):
+                    queue(msg); flush()
 
-            for msg in track:
                 if not extended:
-                    track.insert(0, queue_skip(Message("sysex", data = GM_EXTENSION)))
-                    extended = True
-                    # skip_msg += 1
-                    continue
-                
-                # print(len(skip_msgs))
-                if msg in skip_msgs:
-                    # print("skip")
-                    skip_msgs.remove(msg)
-                    continue
-                # if skip_msgs. is not None: continue
+                    extended = True; queue_and_flush(Message("sysex", data = GM_EXTENSION))
 
                 # Altered; begin file entry
                 if not altered and msg.type in ALTERED_EVENTS:
                     altered = True; print(filename[11:-4].ljust(52))
 
-                if msg.type == 'sysex': track.remove(msg)
+                if msg.type == 'sysex': continue
                 if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
 
-                if not bank_switch and msg.type == 'control_change' and msg.control == 0:
+                if not bank_switch and msg.is_cc(0):
                     bank_switch = True; print("WARNING: bank switch")
 
                 if msg.type == 'program_change':
+                    if SKIP_REPLACE: continue
                     # dump song's instruments
                     if "Welcome!" in filename:
                         print("%i %s"
@@ -282,20 +289,18 @@ for file in os.listdir(directory):
                                 inst_name[msg.program]))
                     # END dumping
 
-                    if msg.program == 127: chan_prog[msg.channel] = 127; continue
+                    if msg.program == 127: chan_prog[msg.channel] = 127; queue_and_flush(msg); continue
 
-                    og_chan_prog[msg.channel] = msg.program
+                    orig_prog[msg.channel] = msg.program
                     replace = inst_replace.get(msg.program)
                     if replace is not None:
                         if type(replace) is tuple:
-                            # print("special instrument:", replace[0], replace[1])
                             special += 1
-                            track.insert(track.index(msg), queue_skip(Message("control_change", channel = msg.channel, control = 0, value = replace[0])))
+                            queue(Message("control_change", channel = msg.channel, control = 0, value = replace[0]))
                             chan_bank[msg.channel] = replace[0]
                             replace = replace[1]
-                            # skip_msg += 1
                         elif chan_bank[msg.channel] != 0:
-                            track.insert(track.index(msg), Message("control_change", channel = msg.channel, control = 0, value = 0))
+                            queue(Message("control_change", channel = msg.channel, control = 0, value = 0))
                             chan_bank[msg.channel] = 0
                         
                         print("%s %s -> %s"
@@ -308,60 +313,67 @@ for file in os.listdir(directory):
                     
                     chan_prog[msg.channel] = msg.program
 
+                    queue_and_flush(msg)
+                    continue
+
                 if msg.type in ('note_on', 'note_off'):
                     if chan_prog[msg.channel] == 127:
                         msg.channel = 9
                         if msg.note == 35:
-                            msg.channel = 14
-                            track.insert(track.index(msg), queue_skip(Message(type = "program_change", channel = 14, program = 119, time = 0)))
-                            msg.note = 60
-                            # skip_msg += 1
+                            queue(Message(type = "program_change", channel = 14, program = 119, time = 0))
+                            queue_and_flush(msg.copy(channel=14, note=60))
                             continue
                             
                         remap = drums_remap.get(msg.note)
                         if remap is not None: msg.note = remap
+                        queue_and_flush(msg)
                         continue
 
-                    tweaks = inst_tweaks.get(og_chan_prog[msg.channel])
-                    if tweaks is not None:
+                    tweaks = inst_tweaks.get(orig_prog[msg.channel])
+                    cut = False
+                    def_queue = True
+                    if tweaks is not None and not SKIP_TWEAKS:
                         ntweaks += 1
 
                         for tweak in tweaks:
                             if type(tweak) is Chord:
-                                insert_index = track.index(msg)
+                                pass
                                 if not tweaked:
-                                    print("Tweaked a", inst_name[chan_prog[msg.channel]], ".", insert_index)
-                                    tweaked = True
+                                    tweaked = True; print("Tweaked a", inst_name[chan_prog[msg.channel]], ".")
 
-                                og_note = msg.note
                                 for offset in tweak.offsets:
-                                    if tweak.offsets.index(offset) == 0:
-                                        msg.note = max(0, min(og_note + offset, 127))
-                                        if msg.type == "note_off" and INSTANT_CUT:
-                                            track.remove(msg)
-                                            track.insert(insert_index, queue_skip
-                                                        (Message(type = "note_on", channel = msg.channel, note = max(0, min(og_note + offset, 127)), 
-                                                                velocity = 1, time = msg.time)))
+                                    if type(offset) is tuple:
+                                        note = max(0, min(msg.note + offset[0], 127))
+                                        velocity = int(msg.velocity * offset[1])
                                     else:
-                                        track.insert(insert_index, queue_skip
-                                                    (Message(type = "note_on" if INSTANT_CUT else msg.type, channel = msg.channel, note = max(0, min(og_note + offset, 127)),
-                                                            velocity = 1 if (msg.type == "note_off" and INSTANT_CUT) else msg.velocity, time = 0)))
-                                queue_skip(msg)
-                                # skip_msg = len(tweak.offsets) - 1
+                                        note = max(0, min(msg.note + offset, 127))
+                                        velocity = msg.velocity
+
+                                    if msg.type == "note_off" and INSTANT_CUT:
+                                        mtype = "note_on"
+                                        velocity = 1
+                                        cut = True
+                                    else: mtype = msg.type
+
+                                    queue(Message(type = mtype, channel = msg.channel, note = note, velocity = velocity, time = msg.time if tweak.offsets.index(offset) == 0 else 0))
+                                    if msg.type == "note_off" and INSTANT_CUT: queue(Message(type = "note_off", channel = msg.channel, note = note, velocity = 0, time = 0))
+                                def_queue = False
+
                             elif type(tweak) is Velocity:
                                 msg.velocity = int(msg.velocity * tweak.mult)
+                
+                    if not cut and msg.type == "note_off" and INSTANT_CUT:
+                        queue(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
+                        queue_and_flush(Message(type = "note_off", channel = msg.channel, note = msg.note, velocity = 0, time = 0))
+                        continue
+
+                    if def_queue: queue(msg)
+                    flush()
                     continue
                 
-                if msg.type == "note_off" and INSTANT_CUT:
-                    insert_index = track.index(msg)
-                    track.remove(msg)
-                    track.insert(insert_index, queue_skip
-                                (Message(type = "note_on", channel = msg.channel, note = msg.note, 
-                                         velocity = 1, time = msg.time)))
-                    
-                queue_skip(msg)
-                
-                        
+                queue_and_flush(msg) # flush default message
+            
+            mid.tracks[mid.tracks.index(og_track)] = track
 
         mid.save(target_dir + filename)
         continue
@@ -373,131 +385,133 @@ print("Program Overrides:", converts)
 print("Special Overrides:", special)
 print("Tweaks:", ntweaks)
 
-# Acoustic Grand Piano
-# Bright Acoustic Piano
-# Electric Grand Piano
-# Honky-tonk Piano
-# Electric Piano 1
-# Electric Piano 2
-# Harpsichord
-# Clavi
-# Celesta
-# Glockenspiel
-# Music Box
-# Vibraphone
-# Marimba
-# Xylophone
-# Tubular Bells
-# Dulcimer
-# Drawbar Organ
-# Percussive Organ
-# Rock Organ
-# Church Organ
-# Reed Organ
-# Accordion
-# Harmonica
-# Tango Accordion
-# Acoustic Guitar (nylon)
-# Acoustic Guitar (steel)
-# Electric Guitar (jazz)
-# Electric Guitar (clean)
-# Electric Guitar (muted)
-# Overdriven Guitar
-# Distortion Guitar
-# Guitar harmonics
-# Acoustic Bass
-# Electric Bass (finger)
-# Electric Bass (pick)
-# Fretless Bass
-# Slap Bass 1
-# Slap Bass 2
-# Synth Bass 1
-# Synth Bass 2
-# Violin
-# Viola
-# Cello
-# Contrabass
-# Tremolo Strings
-# Pizzicato Strings
-# Orchestral Harp
-# Timpani
-# String Ensemble 1
-# String Ensemble 2
-# SynthStrings 1
-# SynthStrings 2
-# Choir Aahs
-# Voice Oohs
-# Synth Voice
-# Orchestra Hit
-# Trumpet
-# Trombone
-# Tuba
-# Muted Trumpet
-# French Horn
-# Brass Section
-# SynthBrass 1
-# SynthBrass 2
-# Soprano Sax
-# Alto Sax
-# Tenor Sax
-# Baritone Sax
-# Oboe
-# English Horn
-# Bassoon
-# Clarinet
-# Piccolo
-# Flute
-# Recorder
-# Pan Flute
-# Blown Bottle
-# Shakuhachi
-# Whistle
-# Ocarina
-# Lead 1 (square)
-# Lead 2 (sawtooth)
-# Lead 3 (calliope)
-# Lead 4 (chiff)
-# Lead 5 (charang)
-# Lead 6 (voice)
-# Lead 7 (fifths)
-# Lead 8 (bass + lead)
-# Pad 1 (new age)
-# Pad 2 (warm)
-# Pad 3 (polysynth)
-# Pad 4 (choir)
-# Pad 5 (bowed)
-# Pad 6 (metallic)
-# Pad 7 (halo)
-# Pad 8 (sweep)
-# FX 1 (rain)
-# FX 2 (soundtrack)
-# FX 3 (crystal)
-# FX 4 (atmosphere)
-# FX 5 (brightness)
-# FX 6 (goblins)
-# FX 7 (echoes)
-# FX 8 (sci-fi)
-# Sitar
-# Banjo
-# Shamisen
-# Koto
-# Kalimba
-# Bag pipe
-# Fiddle
-# Shanai
-# Tinkle Bell
-# Agogo
-# Steel Drums
-# Woodblock
-# Taiko Drum
-# Melodic Tom
-# Synth Drum
-# Reverse Cymbal
-# Guitar Fret Noise
-# Breath Noise
-# Seashore
-# Bird Tweet
-# Telephone Ring
-# Helicopter
-# Applause
-# Gunshot
+"""
+Acoustic Grand Piano
+Bright Acoustic Piano
+Electric Grand Piano
+Honky-tonk Piano
+Electric Piano 1
+Electric Piano 2
+Harpsichord
+Clavi
+Celesta
+Glockenspiel
+Music Box
+Vibraphone
+Marimba
+Xylophone
+Tubular Bells
+Dulcimer
+Drawbar Organ
+Percussive Organ
+Rock Organ
+Church Organ
+Reed Organ
+Accordion
+Harmonica
+Tango Accordion
+Acoustic Guitar (nylon)
+Acoustic Guitar (steel)
+Electric Guitar (jazz)
+Electric Guitar (clean)
+Electric Guitar (muted)
+Overdriven Guitar
+Distortion Guitar
+Guitar harmonics
+Acoustic Bass
+Electric Bass (finger)
+Electric Bass (pick)
+Fretless Bass
+Slap Bass 1
+Slap Bass 2
+Synth Bass 1
+Synth Bass 2
+Violin
+Viola
+Cello
+Contrabass
+Tremolo Strings
+Pizzicato Strings
+Orchestral Harp
+Timpani
+String Ensemble 1
+String Ensemble 2
+SynthStrings 1
+SynthStrings 2
+Choir Aahs
+Voice Oohs
+Synth Voice
+Orchestra Hit
+Trumpet
+Trombone
+Tuba
+Muted Trumpet
+French Horn
+Brass Section
+SynthBrass 1
+SynthBrass 2
+Soprano Sax
+Alto Sax
+Tenor Sax
+Baritone Sax
+Oboe
+English Horn
+Bassoon
+Clarinet
+Piccolo
+Flute
+Recorder
+Pan Flute
+Blown Bottle
+Shakuhachi
+Whistle
+Ocarina
+Lead 1 (square)
+Lead 2 (sawtooth)
+Lead 3 (calliope)
+Lead 4 (chiff)
+Lead 5 (charang)
+Lead 6 (voice)
+Lead 7 (fifths)
+Lead 8 (bass + lead)
+Pad 1 (new age)
+Pad 2 (warm)
+Pad 3 (polysynth)
+Pad 4 (choir)
+Pad 5 (bowed)
+Pad 6 (metallic)
+Pad 7 (halo)
+Pad 8 (sweep)
+FX 1 (rain)
+FX 2 (soundtrack)
+FX 3 (crystal)
+FX 4 (atmosphere)
+FX 5 (brightness)
+FX 6 (goblins)
+FX 7 (echoes)
+FX 8 (sci-fi)
+Sitar
+Banjo
+Shamisen
+Koto
+Kalimba
+Bag pipe
+Fiddle
+Shanai
+Tinkle Bell
+Agogo
+Steel Drums
+Woodblock
+Taiko Drum
+Melodic Tom
+Synth Drum
+Reverse Cymbal
+Guitar Fret Noise
+Breath Noise
+Seashore
+Bird Tweet
+Telephone Ring
+Helicopter
+Applause
+Gunshot
+"""
