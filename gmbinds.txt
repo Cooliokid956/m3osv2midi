@@ -1,0 +1,167 @@
+https://docs.google.com/spreadsheets/d/1MRcE6Xp_lq5EzXKyYrFJ5DxMXKcOcQtRv2UrOxLQiiU/edit?gid=800962608#gid=800962608
+
+        Piano:
+SPECIAL   0 Acoustic Grand Piano
+WIND      1 Bright Acoustic Piano
+STRING?   2 Electric Grand Piano
+CON 7     3 Honky-tonk Piano
+SPECIAL   4 Electric Piano 1
+HMM       5 Electric Piano 2
+CON 4     6 Harpsichord
+SINE      7 Clavinet                Detuned
+         
+        Chromatic Percussion:
+GUITAR?   8 Celesta
+YES       9 Glockenspiel
+         10 Music Box
+         11 Vibraphone
+         12 Marimba
+YES      13 Xylophone
+WARBLE   14 Tubular Bells
+YES      15 Dulcimer
+         
+        Organ:
+YES      16 Drawbar Organ
+BUBBLES  17 Percussive Organ
+SFX      18 Rock Organ
+YES      19 Church Organ
+CUSTOM   20 Reed Organ
+YES      21 Accordion
+PCHORD   22 Harmonica
+SFX      23 Tango Accordion
+         
+        Guitar:
+YES      24 Acoustic Guitar (nylon)
+YEAH     25 Acoustic Guitar (steel)
+GROSS    26 Electric Guitar (jazz)
+         27 Electric Guitar (clean)
+YES      28 Electric Guitar (muted)
+         29 Overdriven Guitar
+         30 Distortion Guitar
+         31 Guitar harmonics
+         
+        Bass:
+YES      32 Acoustic Bass
+         33 Electric Bass (finger)
+         34 Electric Bass (pick)
+YES      35 Fretless Bass
+YES      36 Slap Bass 1
+UHH      37 Slap Bass 2
+YES      38 Synth Bass 1
+SAMPLED  39 Synth Bass 2
+         
+        Strings:
+SAMPLED  40 Violin
+GUITAR?  41 Viola
+SYNTH    42 Cello
+SAMPLED  43 Contrabass
+DRUM     44 Tremolo Strings
+YES      45 Pizzicato Strings
+YES      46 Orchestral Harp
+YES      47 Timpani
+         
+        Strings (continued):
+YES      48 String Ensemble 1
+YES      49 String Ensemble 2
+YES      50 Synth Strings 1
+YES      51 Synth Strings 2
+YES      52 Choir Aahs
+SAMPLED  53 Voice Oohs
+SFX      54 Synth Voice
+YES      55 Orchestra Hit
+         
+        Brass:
+YES      56 Trumpet
+YES      57 Trombone
+SFX      58 Tuba
+YES      59 Muted Trumpet
+YES      60 French Horn
+FRCHPLS  61 Brass Section
+UHH      62 Synth Brass 1
+SURE     63 Synth Brass 2
+         
+        Reed:
+SYNTH    64 Soprano Sax
+MAIN     65 Alto Sax
+ALTOPLS  66 Tenor Sax
+CHARANG? 67 Baritone Sax
+YES      68 Oboe
+GCHORD   69 English Horn
+YES      70 Bassoon
+YES      71 Clarinet
+         
+        Pipe:
+YES      72 Piccolo
+YES      73 Flute
+SAMPLED  74 Recorder
+PAD      75 Pan Flute
+SAMPLED  76 Blown Bottle
+NOISE    77 Shakuhachi
+ORGAN?   78 Whistle
+GOBLINS  79 Ocarina
+         
+        Synth Lead:
+WOOOW    80 Lead 1 (square)
+SAMPLED  81 Lead 2 (sawtooth)
+PULSE    82 Lead 3 (calliope)
+PULSE2   83 Lead 4 (chiff)
+PULSE3   84 Lead 5 (charang)
+PULSE4   85 Lead 6 (voice)
+PULSE5   86 Lead 7 (fifths)
+PULSE6   87 Lead 8 (bass + lead)
+         
+        Synth Pad:
+YES      88 Pad 1 (new age)
+YES      89 Pad 2 (warm)
+TRIANGLE 90 Pad 3 (polysynth)
+PULSE    91 Pad 4 (choir)
+PULSE    92 Pad 5 (bowed)
+WAVE??   93 Pad 6 (metallic)
+WAVE??   94 Pad 7 (halo)
+WAVE??   95 Pad 8 (sweep)
+         
+        Synth Effects:
+TAUWW    96 FX 1 (rain)
+FYOUU    97 FX 2 (soundtrack)
+SCREECH  98 FX 3 (crystal)
+         99 FX 4 (atmosphere)
+        100 FX 5 (brightness)
+SPARKLE 101 FX 6 (goblins)
+WHIRRIN 102 FX 7 (echoes)
+FX      103 FX 8 (sci-fi)
+        
+        Ethnic:
+SAMPLED 104 Sitar
+CLOSE   105 Banjo
+CLOSE   106 Shamisen
+PIANLOOP107 Koto
+YES     108 Kalimba
+GOBLISH 109 Bag pipe
+ROBOT   110 Fiddle
+ROBOT   111 Shanai
+        
+        Percussive:
+HEART   112 Tinkle Bell
+CHIRP   113 Agogo
+YES     114 Steel Drums
+BOOUF   115 Woodblock
+YEOWWW  116 Taiko Drum
+GUITAR  117 Melodic Tom
+GUITAR  118 Synth Drum
+        
+        Sound effects:
+GUITAR  119 Reverse Cymbal
+GUITAR  120 Guitar Fret Noise
+TWANG   121 Breath Noise
+DOOT    122 Seashore
+BARK    123 Bird Tweet
+GROWL   124 Telephone Ring
+WHIMPER 125 Helicopter
+BLOOOO  126 Applause
+ DRUMS  127 Gunshot
+
+Instruments of interest:
+
+001:102 Echo Bell
+002:080 Sine Wave
+A bunch of other alt. bank instruments
