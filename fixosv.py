@@ -29,11 +29,11 @@ INSTANT_CUT  = False
 #     return msg
 
 source_dir = "./OSV/"
-target_dir = "./OSVMSGS/"
+target_dir = "./OSVMIDI/"
 directory = os.fsencode(target_dir)
 
 if os.path.exists(target_dir):
-    print("MSGS exists! removing...")
+    print("Removing old converts...")
     shutil.rmtree(target_dir)
 
 shutil.copytree(source_dir, target_dir)
@@ -108,7 +108,9 @@ drums_remap = {
         No longer! :D
 
         let's keep working on those chords ..zZz
-        11, || 22, 67, 69, 109
+        11, |> 22, 67, 69, 109
+
+        I should probably add GM Level 2 instrument names as well
 """
 
 inst_name = (
@@ -359,9 +361,8 @@ for file in os.listdir(directory):
 
                         for tweak in tweaks:
                             if type(tweak) is Chord:
-                                pass
                                 if not tweaked:
-                                    tweaked = True; print("Tweaked a", inst_name[chan_prog[msg.channel]], ".")
+                                    tweaked = True; print(inst_name[chan_prog[msg.channel]], "tweaked")
 
                                 for offset in tweak.offsets:
                                     if type(offset) is tuple:
@@ -407,6 +408,7 @@ print("Program Overrides:", converts)
 print("Special Overrides:", special)
 print("Tweaks:", ntweaks)
 
+input("Conversion success! Press ENTER to continue...")
 """
 Acoustic Grand Piano
 Bright Acoustic Piano
