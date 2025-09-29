@@ -1,7 +1,8 @@
 # MOTHER 3 OSV to MSGS
 
 import os, shutil
-from mido import MidiFile, Message, open_output, get_output_names
+from mido import MidiFile, MidiTrack, Message, open_output, get_output_names
+from mido.frozen import freeze_message, thaw_message
 
 os.system('cls')
 print("MOTHER 3 OSV to MSGS\n")
@@ -65,7 +66,7 @@ inst_tweaks = {
      6: [Chord(15, 19, 22)],
      7: [Chord(17)],
      9: [Chord(12)],
-    11: [Chord(0, 4, 7)], # Major
+    11: [Chord(0-12, 4-12, 7-12)], # Major
     31: [Chord(-15, -8)],
   # 34: [Chord(24)],
     41: [Chord(12)],
@@ -233,6 +234,7 @@ for file in os.listdir(directory):
         mid = MidiFile(target_dir + filename)
 
         for track in mid.tracks:
+            new = MidiTrack()
             altered = False
             extended = False
             bank_switch = False
@@ -242,18 +244,25 @@ for file in os.listdir(directory):
             chan_bank    = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
 
             tweaked = False
-            skip_msg = 0
+
+            skip_msgs = []
+            def queue_skip(msg):
+                skip_msgs.append(msg)
+                return msg
 
             for msg in track:
                 if not extended:
-                    track.insert(0, Message("sysex", data = GM_EXTENSION))
+                    track.insert(0, queue_skip(Message("sysex", data = GM_EXTENSION)))
                     extended = True
-                    skip_msg += 1
+                    # skip_msg += 1
                     continue
                 
-                if skip_msg > 0:
-                    skip_msg -= 1
+                # print(len(skip_msgs))
+                if msg in skip_msgs:
+                    # print("skip")
+                    skip_msgs.remove(msg)
                     continue
+                # if skip_msgs. is not None: continue
 
                 # Altered; begin file entry
                 if not altered and msg.type in ALTERED_EVENTS:
@@ -281,10 +290,10 @@ for file in os.listdir(directory):
                         if type(replace) is tuple:
                             # print("special instrument:", replace[0], replace[1])
                             special += 1
-                            track.insert(track.index(msg), Message("control_change", channel = msg.channel, control = 0, value = replace[0]))
+                            track.insert(track.index(msg), queue_skip(Message("control_change", channel = msg.channel, control = 0, value = replace[0])))
                             chan_bank[msg.channel] = replace[0]
                             replace = replace[1]
-                            skip_msg += 1
+                            # skip_msg += 1
                         elif chan_bank[msg.channel] != 0:
                             track.insert(track.index(msg), Message("control_change", channel = msg.channel, control = 0, value = 0))
                             chan_bank[msg.channel] = 0
@@ -304,14 +313,13 @@ for file in os.listdir(directory):
                         msg.channel = 9
                         if msg.note == 35:
                             msg.channel = 14
-                            track.insert(track.index(msg)-1, Message(type = "program_change", channel = 14, program = 119, time = 0))
+                            track.insert(track.index(msg), queue_skip(Message(type = "program_change", channel = 14, program = 119, time = 0)))
                             msg.note = 60
-                            skip_msg += 1
+                            # skip_msg += 1
                             continue
                             
                         remap = drums_remap.get(msg.note)
-                        if remap is not None:
-                            msg.note = remap
+                        if remap is not None: msg.note = remap
                         continue
 
                     tweaks = inst_tweaks.get(og_chan_prog[msg.channel])
@@ -328,17 +336,18 @@ for file in os.listdir(directory):
                                 og_note = msg.note
                                 for offset in tweak.offsets:
                                     if tweak.offsets.index(offset) == 0:
-                                        msg.note = min(og_note + offset, 127)
+                                        msg.note = max(0, min(og_note + offset, 127))
                                         if msg.type == "note_off" and INSTANT_CUT:
                                             track.remove(msg)
-                                            track.insert(insert_index,
-                                                        Message(type = "note_on", channel = msg.channel, note = min(og_note + offset, 127), 
-                                                                velocity = 1, time = msg.time))
+                                            track.insert(insert_index, queue_skip
+                                                        (Message(type = "note_on", channel = msg.channel, note = max(0, min(og_note + offset, 127)), 
+                                                                velocity = 1, time = msg.time)))
                                     else:
-                                        track.insert(insert_index,
-                                                    Message(type = "note_on" if INSTANT_CUT else msg.type, channel = msg.channel, note = min(og_note + offset, 127),
-                                                            velocity = 1 if (msg.type == "note_off" and INSTANT_CUT) else msg.velocity, time = 0))
-                                skip_msg = len(tweak.offsets) - 1
+                                        track.insert(insert_index, queue_skip
+                                                    (Message(type = "note_on" if INSTANT_CUT else msg.type, channel = msg.channel, note = max(0, min(og_note + offset, 127)),
+                                                            velocity = 1 if (msg.type == "note_off" and INSTANT_CUT) else msg.velocity, time = 0)))
+                                queue_skip(msg)
+                                # skip_msg = len(tweak.offsets) - 1
                             elif type(tweak) is Velocity:
                                 msg.velocity = int(msg.velocity * tweak.mult)
                     continue
@@ -346,9 +355,12 @@ for file in os.listdir(directory):
                 if msg.type == "note_off" and INSTANT_CUT:
                     insert_index = track.index(msg)
                     track.remove(msg)
-                    track.insert(insert_index,
-                                 Message(type = "note_on", channel = msg.channel, note = msg.note, 
-                                         velocity = 1, time = msg.time))
+                    track.insert(insert_index, queue_skip
+                                (Message(type = "note_on", channel = msg.channel, note = msg.note, 
+                                         velocity = 1, time = msg.time)))
+                    
+                queue_skip(msg)
+                
                         
 
         mid.save(target_dir + filename)
