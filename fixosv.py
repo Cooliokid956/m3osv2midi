@@ -1,28 +1,30 @@
-# MOTHER 3 OSV to MSGS
+# MOTHER 3 OSV to MIDI
 
 import os, shutil
 from mido import MidiFile, MidiTrack, Message
 
 os.system('cls')
-print("MOTHER 3 OSV to MSGS\n")
+print("MOTHER 3 OSV to MIDI\n")
 
-GM_EXTENSION = [0x41, 0x10, 0x42, 0x12, 0x40, 0x00, 0x7F, 0x00, 0x41]
+GM_EXTENSION = [0x41, 0x10,0x42, 0x12, 0x40,0x00,0x7F, 0x00,0x41]
 
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
-# flags
+# settings
+LOOPS = 1
+
 SKIP_REPLACE = False
 SKIP_TWEAKS  = False
 GM_EXTEND    = True
-INSTANT_CUT  = True
+INSTANT_CUT  = False
 
 # def TOGGLE_DRUMS(chan, on):
 #     xx = 0x11 + chan
 #     if chan == 9: xx = 0x10
 #     if chan  > 9: xx -= 1
 #     yy = 0x1A - chan
-#     msg = [0x41, 0x10, 0x42, 0x12, 0x40, xx, 0x15, (1 if on else 0), yy]
+#     msg = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
 
 #     return msg
 
@@ -37,23 +39,26 @@ if os.path.exists(target_dir):
 shutil.copytree(source_dir, target_dir)
 
 inst_replace = {
-     0: (16, 0), # detuned (?)
-    11: (16, 0),
-     1: (3, 122), # wind
-    61: 60, # french horns
-    66: 65, # replace sax
-     3: 88, # synth min
-     6: 88, # synth maj
-     7: (8, 80), # sine
-     9: 8, # celesta
-    82: (1, 80), # square
-    83: (1, 80), # square
-    84: (1, 80), # square
-    85: (1, 80), # square
-    86: (1, 80), # square
-    87: (1, 80), # square
-    31: 30, # DIST.guitar
+      0: (16, 0), # detuned (?)
+     11: (16, 0),
+      1: (3, 122), # wind
+     61: 60,# french horns
+     66: 65, # replace sax
+      3: 88, # synth min
+      6: 88, # synth maj
+      7: (8, 80), # sine
+      9: 8, # celesta
+     82: (1, 80), # square
+     83: (1, 80), # square
+     84: (1, 80), # square
+     85: (1, 80), # square
+     86: (1, 80), # square
+     87: (1, 80), # square
+     31: 30, # DIST.guitar
     126: 18, # Organ (needs work) 18 or 17
+     44: 47, # timpani
+     67: 27, # Guitar chord
+     69: 27, # Guitar chord
 }
 class Chord:
     def __init__(self, *offsets):
@@ -71,9 +76,11 @@ inst_tweaks = {
     31: [Chord(-15, -8)],
   # 34: [Chord(24)],
     41: [Chord(12)],
-  #126: [Chord(0, -12)],
+  #126: [Chord(0,-12)],
     60: [Velocity(0.50)], #, Chord(12)],
     61: [Velocity(0.85)], #, Chord(12)],
+    67: [Chord(0, 3, -5)], # Guitar chord
+    69: [Chord(0, 4, 7)], # Guitar chord
 }
 
 drums_remap = {
@@ -250,11 +257,13 @@ for file in os.listdir(directory):
             extended = not GM_EXTEND
             bank_switch = False
             
-            orig_prog = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
-            chan_prog = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
-            chan_bank = [ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
+            orig_prog = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            chan_prog = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            chan_bank = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
 
             tweaked = False
+
+            loop_start = None
 
             for msg in og_track:
                 msg_queue = []
@@ -273,6 +282,19 @@ for file in os.listdir(directory):
                 # Altered; begin file entry
                 if not altered and msg.type in ALTERED_EVENTS:
                     altered = True; print(filename[11:-4].ljust(52))
+
+                # looping
+                if LOOPS > 0:
+                    if msg.type == 'marker' and msg.text == "loopStart":
+                        queue_and_flush(msg)
+                        loop_start = track.copy()
+                        track = MidiTrack()
+                        continue
+                    if msg.type == 'marker' and msg.text == "loopEnd":
+                        queue_and_flush(msg)
+                        loop_start.extend(track * (LOOPS + 1))
+                        track = loop_start.copy()
+                        continue
 
                 if msg.type == 'sysex': continue
                 if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
@@ -296,11 +318,11 @@ for file in os.listdir(directory):
                     if replace is not None:
                         if type(replace) is tuple:
                             special += 1
-                            queue(Message("control_change", channel = msg.channel, control = 0, value = replace[0]))
+                            queue(Message("control_change", channel = msg.channel, control = 0,value = replace[0]))
                             chan_bank[msg.channel] = replace[0]
                             replace = replace[1]
                         elif chan_bank[msg.channel] != 0:
-                            queue(Message("control_change", channel = msg.channel, control = 0, value = 0))
+                            queue(Message("control_change", channel = msg.channel, control = 0,value = 0))
                             chan_bank[msg.channel] = 0
                         
                         print("%s %s -> %s"
@@ -343,10 +365,10 @@ for file in os.listdir(directory):
 
                                 for offset in tweak.offsets:
                                     if type(offset) is tuple:
-                                        note = max(0, min(msg.note + offset[0], 127))
+                                        note = max(0,min(msg.note + offset[0], 127))
                                         velocity = int(msg.velocity * offset[1])
                                     else:
-                                        note = max(0, min(msg.note + offset, 127))
+                                        note = max(0,min(msg.note + offset, 127))
                                         velocity = msg.velocity
 
                                     if msg.type == "note_off" and INSTANT_CUT:
@@ -356,7 +378,7 @@ for file in os.listdir(directory):
                                     else: mtype = msg.type
 
                                     queue(Message(type = mtype, channel = msg.channel, note = note, velocity = velocity, time = msg.time if tweak.offsets.index(offset) == 0 else 0))
-                                    if msg.type == "note_off" and INSTANT_CUT: queue(Message(type = "note_off", channel = msg.channel, note = note, velocity = 0, time = 0))
+                                    if msg.type == "note_off" and INSTANT_CUT: queue(Message(type = "note_off", channel = msg.channel, note = note, velocity = 0,time = 0))
                                 def_queue = False
 
                             elif type(tweak) is Velocity:
@@ -364,7 +386,7 @@ for file in os.listdir(directory):
                 
                     if not cut and msg.type == "note_off" and INSTANT_CUT:
                         queue(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
-                        queue_and_flush(Message(type = "note_off", channel = msg.channel, note = msg.note, velocity = 0, time = 0))
+                        queue_and_flush(Message(type = "note_off", channel = msg.channel, note = msg.note, velocity = 0,time = 0))
                         continue
 
                     if def_queue: queue(msg)
