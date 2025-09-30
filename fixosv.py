@@ -7,6 +7,7 @@ os.system('cls')
 print("MOTHER 3 OSV to MIDI\n")
 
 GM_EXTENSION = [0x41, 0x10,0x42, 0x12, 0x40,0x00,0x7F, 0x00,0x41]
+                # 65,   16,  66,   18,   64,   0, 127,    0,  65
 
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
@@ -19,14 +20,15 @@ SKIP_TWEAKS  = False
 GM_EXTEND    = True
 INSTANT_CUT  = False
 
-# def TOGGLE_DRUMS(chan, on):
-#     xx = 0x11 + chan
-#     if chan == 9: xx = 0x10
-#     if chan  > 9: xx -= 1
-#     yy = 0x1A - chan
-#     msg = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
+def TOGGLE_DRUMS(chan, on):
+    xx = 0x11 + chan
+    if chan == 9: xx = 0x10
+    if chan  > 9: xx -= 1
+    yy = 0x1A - chan
+    msg = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
+           # 65,   16,  66,   18,   64,xx,   21, (1 if on else 0), yy]
 
-#     return msg
+    return msg
 
 source_dir = "./OSV/"
 target_dir = "./OSVMIDI/"
@@ -42,7 +44,7 @@ inst_replace = {
       0: (16, 0), # detuned (?)
      11: (16, 0),
       1: (3, 122), # wind
-     61: 60,# french horns
+     61: 60, # french horns
      66: 65, # replace sax
       3: 88, # synth min
       6: 88, # synth maj
@@ -265,7 +267,7 @@ for file in os.listdir(directory):
 
             tweaked = False
 
-            loop_start = None
+            pre_loop = None
 
             for msg in og_track:
                 msg_queue = []
@@ -280,25 +282,26 @@ for file in os.listdir(directory):
 
                 if not extended:
                     extended = True; queue_and_flush(Message("sysex", data = GM_EXTENSION))
+                    queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(9, False)))
 
                 # Altered; begin file entry
                 if not altered and msg.type in ALTERED_EVENTS:
                     altered = True; print(filename[11:-4].ljust(52))
 
                 # looping
-                if LOOPS > 0:
-                    if msg.type == 'marker' and msg.text == "loopStart":
-                        queue_and_flush(msg)
-                        loop_start = track.copy()
-                        track = MidiTrack()
-                        continue
-                    if msg.type == 'marker' and msg.text == "loopEnd":
-                        queue_and_flush(msg)
-                        loop_start.extend(track * (LOOPS + 1))
-                        track = loop_start.copy()
+                if msg.type == 'marker':
+                    queue_and_flush(msg)
+                    if LOOPS > 0:
+                        match msg.text:
+                            case "loopStart":
+                                pre_loop = track.copy()
+                                track = MidiTrack()
+                            case "loopEnd":
+                                pre_loop.extend(track * (LOOPS + 1))
+                                track = pre_loop.copy()
                         continue
 
-                if msg.type == 'sysex': continue
+                if msg.type == 'sysex': print("sysex:", msg.data); continue
                 if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
 
                 if not bank_switch and msg.is_cc(0):
