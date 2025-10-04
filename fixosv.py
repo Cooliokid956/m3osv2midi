@@ -1,24 +1,23 @@
 # MOTHER 3 OSV to MIDI
 
 import os, shutil
-from mido import MidiFile, MidiTrack, Message
+from mido import MidiFile, MidiTrack, Message, merge_tracks
 
-os.system('cls')
+os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
 
-GM_EXTENSION = [0x41, 0x10,0x42, 0x12, 0x40,0x00,0x7F, 0x00,0x41]
-                # 65,   16,  66,   18,   64,   0, 127,    0,  65
+GS_RESET = [0x41, 0x10,0x42, 0x12, 0x40,0x00,0x7F, 0x00,0x41]
+            # 65,   16,  66,   18,   64,   0, 127,    0,  65
 
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
 # settings
-LOOPS = 1
-
+LOOPS        = 1
+INSTANT_CUT  = False
+GS_EXTEND    = True
 SKIP_REPLACE = False
 SKIP_TWEAKS  = False
-GM_EXTEND    = True
-INSTANT_CUT  = False
 
 def TOGGLE_DRUMS(chan, on):
     xx = 0x11 + chan
@@ -32,13 +31,12 @@ def TOGGLE_DRUMS(chan, on):
 
 source_dir = "./OSV/"
 target_dir = "./OSVMIDI/"
-directory = os.fsencode(target_dir)
 
 if os.path.exists(target_dir):
     print("Removing old converts...")
     shutil.rmtree(target_dir)
 
-shutil.copytree(source_dir, target_dir)
+os.mkdir(target_dir)
 
 inst_replace = {
       0: (16, 0), # detuned (?)
@@ -113,6 +111,8 @@ drums_remap = {
         11, |> 22, 67, 69, 109
 
         I should probably add GM Level 2 instrument names as well
+
+        Add more chords and introduce auxiliary channels (keep track of unused channels, begin airing before school open backstor ) 
 """
 
 inst_name = (
@@ -250,15 +250,15 @@ converts = 0
 special  = 0
 ntweaks  = 0
 
-for file in os.listdir(directory):
+for file in os.listdir(os.fsencode(source_dir)):
     filename = os.fsdecode(file)
     if filename.endswith(".mid"): 
-        mid = MidiFile(target_dir + filename)
+        mid = MidiFile(source_dir + filename)
 
         for og_track in mid.tracks:
             track = MidiTrack()
             altered = False
-            extended = not GM_EXTEND
+            extended = not GS_EXTEND
             bank_switch = False
             
             orig_prog = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
@@ -281,8 +281,9 @@ for file in os.listdir(directory):
                     queue(msg); flush()
 
                 if not extended:
-                    extended = True; queue_and_flush(Message("sysex", data = GM_EXTENSION))
-                    queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(9, False)))
+                    extended = True; queue_and_flush(Message("sysex", data = GS_RESET))
+                    queue_and_flush(Message("program_change", channel = 9, program = 16, time = 0)) # different drumset
+                    # queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(9, False)))
 
                 # Altered; begin file entry
                 if not altered and msg.type in ALTERED_EVENTS:
