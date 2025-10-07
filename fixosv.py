@@ -16,8 +16,8 @@ ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 LOOPS        = 1
 INSTANT_CUT  = False
 GS_EXTEND    = True
-SKIP_REPLACE = False
-SKIP_TWEAKS  = False
+SKIP_REPLACE = True
+SKIP_TWEAKS  = True
 
 def TOGGLE_DRUMS(chan, on):
     xx = 0x11 + chan
@@ -79,13 +79,14 @@ inst_tweaks = {
   #126: [Chord(0,-12)],
     60: [Velocity(0.50)], #, Chord(12)],
     61: [Velocity(0.85)], #, Chord(12)],
-    67: [Chord(0, 3, -5)], # Guitar chord
+    67: [Chord(0, 3,-5)], # Guitar chord
     69: [Chord(0, 4, 7)], # Guitar chord
 }
 
 drums_remap = {
     35: 43 # cymbal
 }
+
 """
   TODO: convert chord instruments to proper instrument, keep track of channel and append chord notes
         bank switching! for special instruments
@@ -284,6 +285,8 @@ for file in os.listdir(os.fsencode(source_dir)):
                     extended = True; queue_and_flush(Message("sysex", data = GS_RESET))
                     queue_and_flush(Message("program_change", channel = 9, program = 16, time = 0)) # different drumset
                     # queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(9, False)))
+                    for i in range(16):
+                        queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(i, True)))
 
                 # Altered; begin file entry
                 if not altered and msg.type in ALTERED_EVENTS:
@@ -295,15 +298,15 @@ for file in os.listdir(os.fsencode(source_dir)):
                     if LOOPS > 0:
                         match msg.text:
                             case "loopStart":
-                                pre_loop = track.copy()
+                                pre_loop = track
                                 track = MidiTrack()
                             case "loopEnd":
                                 pre_loop.extend(track * (LOOPS + 1))
-                                track = pre_loop.copy()
-                        continue
+                                track = pre_loop
+                    continue
 
                 if msg.type == 'sysex': print("sysex:", msg.data); continue
-                if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
+                # if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
 
                 if not bank_switch and msg.is_cc(0):
                     bank_switch = True; print("WARNING: bank switch")
@@ -388,7 +391,7 @@ for file in os.listdir(os.fsencode(source_dir)):
 
                             elif type(tweak) is Velocity:
                                 msg.velocity = int(msg.velocity * tweak.mult)
-                
+
                     if not cut and msg.type == "note_off" and INSTANT_CUT:
                         queue(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
                         queue_and_flush(Message(type = "note_off", channel = msg.channel, note = msg.note, velocity = 0,time = 0))
@@ -413,6 +416,7 @@ print("Special Overrides:", special)
 print("Tweaks:", ntweaks)
 
 input("Conversion success! Press ENTER to continue...")
+
 """
 Acoustic Grand Piano
 Bright Acoustic Piano
