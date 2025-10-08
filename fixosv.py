@@ -16,8 +16,8 @@ ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 LOOPS        = 1
 INSTANT_CUT  = False
 GS_EXTEND    = True
-SKIP_REPLACE = True
-SKIP_TWEAKS  = True
+SKIP_REPLACE = False
+SKIP_TWEAKS  = False
 
 def TOGGLE_DRUMS(chan, on):
     xx = 0x11 + chan
@@ -84,8 +84,10 @@ inst_tweaks = {
 }
 
 drums_remap = {
-    35: 43 # cymbal
+    35: 43, # cymbal
+    33: (48, 59) # Orchestra;
 }
+DEF_BANK = 16
 
 """
   TODO: convert chord instruments to proper instrument, keep track of channel and append chord notes
@@ -265,6 +267,7 @@ for file in os.listdir(os.fsencode(source_dir)):
             orig_prog = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
             chan_prog = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
             chan_bank = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+            perc_bank = DEF_BANK
 
             tweaked = False
 
@@ -283,10 +286,10 @@ for file in os.listdir(os.fsencode(source_dir)):
 
                 if not extended:
                     extended = True; queue_and_flush(Message("sysex", data = GS_RESET))
-                    queue_and_flush(Message("program_change", channel = 9, program = 16, time = 0)) # different drumset
+                    queue_and_flush(Message("program_change", channel = 9, program = DEF_BANK, time = 0)) # different drumset
                     # queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(9, False)))
-                    for i in range(16):
-                        queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(i, True)))
+                    # for i in range(16):
+                    #     queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(i, True)))
 
                 # Altered; begin file entry
                 if not altered and msg.type in ALTERED_EVENTS:
@@ -306,7 +309,7 @@ for file in os.listdir(os.fsencode(source_dir)):
                     continue
 
                 if msg.type == 'sysex': print("sysex:", msg.data); continue
-                # if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
+                if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
 
                 if not bank_switch and msg.is_cc(0):
                     bank_switch = True; print("WARNING: bank switch")
@@ -356,7 +359,17 @@ for file in os.listdir(os.fsencode(source_dir)):
                             continue
                             
                         remap = drums_remap.get(msg.note)
-                        if remap is not None: msg.note = remap
+                        if remap is not None:
+                            note = 0; bank = DEF_BANK
+                            if type(remap) is tuple:
+                                bank = remap[0]
+                                note = remap[1]
+                            else:
+                                note = remap
+                            if bank != perc_bank:
+                                queue(Message(type = "program_change", channel = 9, program = bank, time = 0))
+                                perc_bank = bank
+                            msg.note = note
                         queue_and_flush(msg)
                         continue
 
