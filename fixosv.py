@@ -3,6 +3,7 @@
 import os, shutil
 from mido import MidiFile, MidiTrack, Message, merge_tracks
 
+def clamp(x, a, b): return max(a,min(x, b))
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
 
@@ -62,7 +63,12 @@ inst_replace = {
 }
 class Chord:
     def __init__(self, *offsets):
-        self.offsets = offsets
+        self.offsets = []
+        for offset in offsets:
+            if type(offset) is not tuple:
+                offset = (offset, 1)
+            self.offsets.append(offset)
+
 class Velocity:
     def __init__(self, mult):
         self.mult = mult
@@ -87,7 +93,7 @@ drums_remap = {
     35: 43, # cymbal
     33: (48, 59) # Orchestra;
 }
-DEF_BANK = 16
+DEF_BANK = 0 # 16 for Power
 
 """
   TODO: convert chord instruments to proper instrument, keep track of channel and append chord notes
@@ -283,6 +289,10 @@ for file in os.listdir(os.fsencode(source_dir)):
                     msg_queue.clear()
                 def queue_and_flush(msg):
                     queue(msg); flush()
+                def pop_time(msg):
+                    time = msg.time
+                    msg.time = 0
+                    return time
 
                 if not extended:
                     extended = True; queue_and_flush(Message("sysex", data = GS_RESET))
@@ -303,6 +313,7 @@ for file in os.listdir(os.fsencode(source_dir)):
                             case "loopStart":
                                 pre_loop = track
                                 track = MidiTrack()
+                                queue_and_flush(Message("program_change", channel = 9, program = perc_bank, time = 0)) # find a better way to do this
                             case "loopEnd":
                                 pre_loop.extend(track * (LOOPS + 1))
                                 track = pre_loop
@@ -326,23 +337,23 @@ for file in os.listdir(os.fsencode(source_dir)):
                     if msg.program == 127: chan_prog[msg.channel] = 127; queue_and_flush(msg); continue
 
                     orig_prog[msg.channel] = msg.program
-                    replace = inst_replace.get(msg.program)
-                    if replace is not None:
-                        if type(replace) is tuple:
+                    prog = inst_replace.get(msg.program)
+                    if prog is not None:
+                        bank = 0
+                        if type(prog) is tuple:
                             special += 1
-                            queue(Message("control_change", channel = msg.channel, control = 0,value = replace[0]))
-                            chan_bank[msg.channel] = replace[0]
-                            replace = replace[1]
-                        elif chan_bank[msg.channel] != 0:
-                            queue(Message("control_change", channel = msg.channel, control = 0,value = 0))
-                            chan_bank[msg.channel] = 0
+                            bank = prog[0]
+                            prog = prog[1]
+                        if chan_bank[msg.channel] != bank:
+                            queue(Message("control_change", channel = msg.channel, control = 0, value = bank, time = pop_time(msg)))
+                            chan_bank[msg.channel] = bank
                         
                         print("%s %s -> %s"
                              % (str(msg.channel).rjust(2),
                                 inst_name[msg.program].ljust(23),
-                                inst_name[replace].ljust(23)))
+                                inst_name[prog].ljust(23)))
                         
-                        msg.program = replace
+                        msg.program = prog
                         converts += 1
                     
                     chan_prog[msg.channel] = msg.program
@@ -354,7 +365,7 @@ for file in os.listdir(os.fsencode(source_dir)):
                     if chan_prog[msg.channel] == 127:
                         msg.channel = 9
                         if msg.note == 35:
-                            queue(Message(type = "program_change", channel = 14, program = 119, time = 0))
+                            queue(Message(type = "program_change", channel = 14, program = 119, time = pop_time(msg)))
                             queue_and_flush(msg.copy(channel=14, note=60))
                             continue
                             
@@ -367,7 +378,7 @@ for file in os.listdir(os.fsencode(source_dir)):
                             else:
                                 note = remap
                             if bank != perc_bank:
-                                queue(Message(type = "program_change", channel = 9, program = bank, time = 0))
+                                queue(Message(type = "program_change", channel = 9, program = bank, time = pop_time(msg)))
                                 perc_bank = bank
                             msg.note = note
                         queue_and_flush(msg)
@@ -385,12 +396,8 @@ for file in os.listdir(os.fsencode(source_dir)):
                                     tweaked = True; print(inst_name[chan_prog[msg.channel]], "tweaked")
 
                                 for offset in tweak.offsets:
-                                    if type(offset) is tuple:
-                                        note = max(0,min(msg.note + offset[0], 127))
-                                        velocity = int(msg.velocity * offset[1])
-                                    else:
-                                        note = max(0,min(msg.note + offset, 127))
-                                        velocity = msg.velocity
+                                    note = clamp(msg.note + offset[0], 0, 127)
+                                    velocity = int(msg.velocity * offset[1])
 
                                     if msg.type == "note_off" and INSTANT_CUT:
                                         mtype = "note_on"
@@ -419,9 +426,6 @@ for file in os.listdir(os.fsencode(source_dir)):
             mid.tracks[mid.tracks.index(og_track)] = track
 
         mid.save(target_dir + filename)
-        continue
-    else:
-        continue
 
 print()
 print("Program Overrides:", converts)
