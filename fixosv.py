@@ -1,7 +1,7 @@
 # MOTHER 3 OSV to MIDI
 
 import os, shutil
-from mido import MidiFile, MidiTrack, Message, merge_tracks
+from mido import MidiFile, MidiTrack, Message #, merge_tracks # planned for use with guitar strum emulation
 
 def clamp(x, a, b): return max(a,min(x, b))
 os.system('cls' if os.name == "nt" else 'clear')
@@ -366,10 +366,12 @@ def main():
     converts = 0
     ntweaks  = 0
     perc_counts = {}
+    total_og_len = 0
+    total_len = 0
 
     for file in os.listdir(os.fsencode(source_dir)):
         filename = os.fsdecode(file)
-        if filename.endswith(".mid"): 
+        if filename.endswith(".mid"):
             mid = MidiFile(source_dir + filename)
 
             for og_track in mid.tracks:
@@ -448,8 +450,8 @@ def main():
                     if msg.is_cc(0):
                         if not bank_switch and msg.value != 0: bank_switch = True; print("Contains special instruments")
                         orig_prog[msg.channel] = (msg.value, orig_prog[msg.channel][1])
-                        if SKIP_REPLACE: queue_and_flush(msg); continue
-                        suppress(msg); continue
+                        queue_and_flush(msg) if SKIP_REPLACE else suppress(msg)
+                        continue
 
                     if msg.type == 'program_change':
                         orig_prog[msg.channel] = (orig_prog[msg.channel][0], msg.program)
@@ -462,36 +464,32 @@ def main():
                                     inst_name[(orig_prog[msg.channel][0], msg.program)]))
                         # END dumping
 
+                        new_prog, replaced = get_inst(orig_prog[msg.channel])
                         # static perc count test
-                        if chan_prog[msg.channel] != get_inst(orig_prog[msg.channel]):
-                            # TO-DO: write this code
-                            pass
+                        if chan_prog[msg.channel] != new_prog:
+                            if orig_prog[msg.channel] == (0, 127):
+                                # always_drums[msg.channel] += 1
 
-                        if orig_prog[msg.channel] == (0, 127):
-                            # always_drums[msg.channel] += 1
+                                new_perc_count = 0
+                                for prog in orig_prog:
+                                    if prog == (0, 127):
+                                        new_perc_count += 1
+                                if new_perc_count > perc_count:
+                                    perc_count = new_perc_count
 
-                            new_perc_count = 0
-                            for prog in orig_prog:
-                                if prog == (0, 127):
-                                    new_perc_count += 1
-                            if new_perc_count > perc_count:
-                                perc_count = new_perc_count
+                            if chan_prog[msg.channel][0] != new_prog[0]:
+                                queue(Message("control_change", channel = msg.channel, control = 0, value = new_prog[0], time = pop_time(msg)))
+                            chan_prog[msg.channel] = new_prog
+                            msg.program = new_prog[1]
+                            if replaced:
+                                converts += 1
+                                print("%s %s -> %s"
+                                     % (str(msg.channel).rjust(2),
+                                        inst_name[orig_prog[msg.channel]].ljust(23),
+                                        inst_name[new_prog].ljust(23)))
 
-
-                        prog, replaced = get_inst(orig_prog[msg.channel])
-                        
-                        if chan_prog[msg.channel][0] != prog[0]:
-                            queue(Message("control_change", channel = msg.channel, control = 0, value = prog[0], time = pop_time(msg)))
-                        chan_prog[msg.channel] = prog
-                        msg.program = prog[1]
-                        if replaced:
-                            converts += 1
-                            print("%s %s -> %s"
-                                 % (str(msg.channel).rjust(2),
-                                    inst_name[orig_prog[msg.channel]].ljust(23),
-                                    inst_name[prog].ljust(23)))
-
-                        queue_and_flush(msg)
+                            queue_and_flush(msg)
+                        else: suppress(msg)
                         continue
 
                     is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel] == (0, 127)
@@ -551,19 +549,23 @@ def main():
                         if def_queue: queue(msg)
                         flush()
                         continue
-                    
+
                     queue_and_flush(msg) # flush default message
 
                 mid.tracks[mid.tracks.index(og_track)] = track
 
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = []
                 perc_counts[perc_count].append(filename)
+                print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
+                total_og_len += len(og_track)
+                total_len += len(track)
 
             mid.save(target_dir + filename)
 
     print()
     print("Program Overrides:", converts)
     print("Tweaks:", ntweaks)
+    print("Message reduction:", f"{(total_len / total_og_len):.2%}", "(%i/%i)" % (total_len, total_og_len))
     # print("Peak percussion channel counts:", perc_counts)
 
     input("Conversion success! Press ENTER to continue...")
