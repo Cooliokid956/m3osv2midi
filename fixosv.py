@@ -386,6 +386,7 @@ def main():
                 for i in range(16):
                     orig_prog.append((0, 0))
                     chan_prog.append((0, 0))
+                    prog_record.append([])
                 perc_bank = DEF_BANK
                 rest_time = 0
 
@@ -464,7 +465,7 @@ def main():
                         new_prog, replaced = get_inst(orig_prog[msg.channel])
                         if chan_prog[msg.channel] != new_prog:
                             # static perc count test
-                            prog_record.append(new_prog)
+                            prog_record[msg.channel].append(new_prog)
                             if orig_prog[msg.channel] == (0, 127):
                                 new_perc_count = 0
                                 for prog in orig_prog:
@@ -550,10 +551,12 @@ def main():
 
                 mid.tracks[mid.tracks.index(og_track)] = track
 
+                for i, prog_list in enumerate(prog_record):
+                    if len(prog_list) > 0:
+                        print(i, len(prog_list), prog_list[0])
+                        if len(prog_list) == 1 and prog_list[0] == (0, 127):
+                            perc_count -= 1
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = []
-                for prog_list in prog_record:
-                    if len(prog_list) == 1 and prog_list[1] == (0, 127):
-                        perc_count -= 1
                 perc_counts[perc_count].append(filename)
 
                 print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
