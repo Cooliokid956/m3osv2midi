@@ -382,13 +382,10 @@ def main():
 
                 orig_prog = []
                 chan_prog = []
-                pc_count = [] # static perc channel test
-                always_drums = [] # static perc channel test
+                prog_record = []
                 for i in range(16):
                     orig_prog.append((0, 0))
                     chan_prog.append((0, 0))
-                    pc_count.append(0) # static perc channel test
-                    always_drums.append(0) # static perc channel test
                 perc_bank = DEF_BANK
                 rest_time = 0
 
@@ -465,11 +462,10 @@ def main():
                         # END dumping
 
                         new_prog, replaced = get_inst(orig_prog[msg.channel])
-                        # static perc count test
                         if chan_prog[msg.channel] != new_prog:
+                            # static perc count test
+                            prog_record.append(new_prog)
                             if orig_prog[msg.channel] == (0, 127):
-                                # always_drums[msg.channel] += 1
-
                                 new_perc_count = 0
                                 for prog in orig_prog:
                                     if prog == (0, 127):
@@ -555,7 +551,11 @@ def main():
                 mid.tracks[mid.tracks.index(og_track)] = track
 
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = []
+                for prog_list in prog_record:
+                    if len(prog_list) == 1 and prog_list[1] == (0, 127):
+                        perc_count -= 1
                 perc_counts[perc_count].append(filename)
+
                 print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
                 total_og_len += len(og_track)
                 total_len += len(track)
@@ -566,7 +566,7 @@ def main():
     print("Program Overrides:", converts)
     print("Tweaks:", ntweaks)
     print("Message reduction:", f"{(total_len / total_og_len):.2%}", "(%i/%i)" % (total_len, total_og_len))
-    # print("Peak percussion channel counts:", perc_counts)
+    print("Peak dynamic percussion channel counts:", perc_counts)
 
     input("Conversion success! Press ENTER to continue...")
 
