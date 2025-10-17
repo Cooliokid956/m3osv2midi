@@ -421,8 +421,8 @@ def main():
 
                     if not extended:
                         extended = True; queue_and_flush(GS_RESET)
-                        queue_and_flush(Message("program_change", channel = 9, program = DEF_BANK)) # different drumset
-                        # queue_and_flush(TOGGLE_DRUMS(9, False))
+                        # queue_and_flush(Message("program_change", channel = 9, program = DEF_BANK)) # different drumset
+                        queue_and_flush(TOGGLE_DRUMS(9, False))
                         # for i in range(16):
                         #     queue_and_flush(TOGGLE_DRUMS(i, True))
 
@@ -599,6 +599,7 @@ def main():
                 # pass 2: deferred percussion
 
                 print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
+                print("Peak channel:", peak_chan)
                 total_og_len += len(og_track)
                 total_len += len(track)
 
