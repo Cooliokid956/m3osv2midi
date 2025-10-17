@@ -1,6 +1,7 @@
 # MOTHER 3 OSV to MIDI
 
 import os, shutil
+
 from mido import MidiFile, MidiTrack, Message #, merge_tracks # planned for use with guitar strum emulation
 
 def clamp(x, a, b): return max(a,min(x, b))
@@ -550,14 +551,32 @@ def main():
 
                     queue_and_flush(msg) # flush default message
 
+                dyn_perc = []
                 for i, prog_list in enumerate(prog_record):
                     if len(prog_list) > 0:
                         print(i, len(prog_list), prog_list[0])
-                        if len(prog_list) == 1 and prog_list[0] == (0, 127):
-                            perc_count -= 1
-                            track.insert(1, TOGGLE_DRUMS(i, True))
+                        if (0, 127) in prog_list:
+                            if len(prog_list) == 1:
+                                perc_count -= 1
+                                track.insert(1, TOGGLE_DRUMS(i, True))
+                            else:
+                                dyn_perc.append(i)
+                                track.insert(1, TOGGLE_DRUMS(9+len(dyn_perc), True))
+
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = []
                 perc_counts[perc_count].append(filename)
+
+                # pass 2: deferred percussion
+                for i in range(16):
+                    orig_prog[i] = (0, 0)
+                for msg in track:
+                    if msg.type in CHANNEL_EVENTS and msg.channel in dyn_perc:
+                        if msg.is_cc(0):
+                            orig_prog[msg.channel] = (msg.value, orig_prog[msg.channel][1])
+                        elif msg.type == 'program_change':
+                            orig_prog[msg.channel] = (orig_prog[msg.channel][0], msg.program)
+                        if orig_prog[msg.channel] == (0, 127):
+                            msg.channel = 9 + dyn_perc.index(msg.channel)
 
                 mid.tracks[mid.tracks.index(og_track)] = track
 
