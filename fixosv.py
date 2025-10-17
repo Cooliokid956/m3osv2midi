@@ -7,8 +7,8 @@ def clamp(x, a, b): return max(a,min(x, b))
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
 
-GS_RESET = [0x41, 0x10,0x42, 0x12, 0x40,0x00,0x7F, 0x00,0x41]
-            # 65,   16,  66,   18,   64,   0, 127,    0,  65
+GS_RESET = Message("sysex", data = [0x41, 0x10,0x42, 0x12, 0x40,0x00,0x7F, 0x00,0x41])
+                                         # 65,   16,  66,   18,   64,   0, 127,    0,  65
 
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
@@ -28,7 +28,7 @@ def TOGGLE_DRUMS(chan, on):
     msg = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
            # 65,   16,  66,   18,   64,xx,   21, (1 if on else 0), yy]
 
-    return msg
+    return Message("sysex", data = msg)
 
 source_dir = "./OSV/"
 target_dir = "./OSVMIDI/"
@@ -396,6 +396,7 @@ def main():
 
                 perc_count = 0
 
+                # pass 1
                 for msg in og_track:
                     msg_queue = []
                     def suppress(msg):
@@ -417,11 +418,11 @@ def main():
                         return time
 
                     if not extended:
-                        extended = True; queue_and_flush(Message("sysex", data = GS_RESET))
+                        extended = True; queue_and_flush(GS_RESET)
                         queue_and_flush(Message("program_change", channel = 9, program = DEF_BANK)) # different drumset
-                        # queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(9, False)))
+                        # queue_and_flush(TOGGLE_DRUMS(9, False))
                         # for i in range(16):
-                        #     queue_and_flush(Message("sysex", data = TOGGLE_DRUMS(i, True)))
+                        #     queue_and_flush(TOGGLE_DRUMS(i, True))
 
                     # Altered; begin file entry
                     if not altered and msg.type in ALTERED_EVENTS:
@@ -490,7 +491,7 @@ def main():
                         continue
 
                     is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel] == (0, 127)
-                    if is_drums: msg.channel = 9
+                    # if is_drums: msg.channel = 9
 
                     if msg.type in ('note_on', 'note_off'):
                         if is_drums:
@@ -505,7 +506,7 @@ def main():
                                 bank = remap[0]
                                 msg.note = remap[1]
                             if bank != perc_bank:
-                                queue(Message(type = "program_change", channel = 9, program = bank, time = pop_time(msg)))
+                                queue(Message(type = "program_change", channel = msg.channel, program = bank, time = pop_time(msg)))
                                 perc_bank = bank
                             queue_and_flush(msg)
                             continue
@@ -549,15 +550,16 @@ def main():
 
                     queue_and_flush(msg) # flush default message
 
-                mid.tracks[mid.tracks.index(og_track)] = track
-
                 for i, prog_list in enumerate(prog_record):
                     if len(prog_list) > 0:
                         print(i, len(prog_list), prog_list[0])
                         if len(prog_list) == 1 and prog_list[0] == (0, 127):
                             perc_count -= 1
+                            track.insert(1, TOGGLE_DRUMS(i, True))
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = []
                 perc_counts[perc_count].append(filename)
+
+                mid.tracks[mid.tracks.index(og_track)] = track
 
                 print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
                 total_og_len += len(og_track)
