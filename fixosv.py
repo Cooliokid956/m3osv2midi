@@ -369,6 +369,8 @@ def main():
     perc_counts = {}
     total_og_len = 0
     total_len = 0
+    peak_chan = 0
+    peak_chan_name = ""
 
     for file in os.listdir(os.fsencode(source_dir)):
         filename = os.fsdecode(file)
@@ -383,20 +385,21 @@ def main():
 
                 orig_prog = []
                 chan_prog = []
+                perc_bank = []
                 prog_record = []
                 for i in range(16):
                     orig_prog.append((0, 0))
                     chan_prog.append((0, 0))
+                    perc_bank.append(DEF_BANK)
                     prog_record.append([])
-                perc_bank = DEF_BANK
                 rest_time = 0
 
                 tweaked = False
 
-                pre_loop = None
+                pre_loop_track = None
+                pre_loop_perc_bank = None
 
                 perc_count = 0
-                peak_chan = 0
 
                 # pass 1
                 for msg in og_track:
@@ -420,11 +423,8 @@ def main():
                         return time
 
                     if not extended:
-                        extended = True; queue_and_flush(GS_RESET)
-                        # queue_and_flush(Message("program_change", channel = 9, program = DEF_BANK)) # different drumset
+                        extended = True; queue(GS_RESET)
                         queue_and_flush(TOGGLE_DRUMS(9, False))
-                        # for i in range(16):
-                        #     queue_and_flush(TOGGLE_DRUMS(i, True))
 
                     # Altered; begin file entry
                     if not altered and msg.type in ALTERED_EVENTS:
@@ -436,17 +436,16 @@ def main():
                         if LOOPS > 0:
                             match msg.text:
                                 case "loopStart":
-                                    pre_loop = track
+                                    pre_loop_track = track
                                     track = MidiTrack()
-                                    queue_and_flush(Message("program_change", channel = 9, program = perc_bank)) # find a better way to do this
+                                    # pre_loop_perc_bank = perc_bank
+                                    # queue_and_flush(Message("program_change", channel = 9, program = perc_bank)) # find a better way to do this
                                 case "loopEnd":
-                                    pre_loop.extend(track * (LOOPS + 1))
-                                    track = pre_loop
+                                    pre_loop_track.extend(track * (LOOPS + 1))
+                                    track = pre_loop_track
                         continue
 
                     if msg.type == 'sysex': suppress(msg); continue#print("sysex:", msg.data); continue
-
-                    if msg.type in CHANNEL_EVENTS and msg.channel == 9: msg.channel = 15
 
                     if msg.is_cc(0):
                         if not bank_switch and msg.value != 0: bank_switch = True; print("Contains special instruments")
@@ -493,7 +492,6 @@ def main():
                         continue
 
                     is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel] == (0, 127)
-                    # if is_drums: msg.channel = 9
 
                     if msg.type in ('note_on', 'note_off'):
                         if is_drums:
@@ -507,9 +505,9 @@ def main():
                             if remap is not None:
                                 bank = remap[0]
                                 msg.note = remap[1]
-                            if bank != perc_bank:
+                            if bank != perc_bank[msg.channel]:
                                 queue(Message(type = "program_change", channel = msg.channel, program = bank, time = pop_time(msg)))
-                                perc_bank = bank
+                                perc_bank[msg.channel] = bank
                             queue_and_flush(msg)
                             continue
 
@@ -552,37 +550,40 @@ def main():
 
                     queue_and_flush(msg) # flush default message
 
-                    if msg.type in CHANNEL_EVENTS and msg.channel > peak_chan: peak_chan = msg.channel
+                    if msg.type in CHANNEL_EVENTS and msg.channel > peak_chan:
+                        peak_chan = msg.channel
+                        peak_chan_name = filename
 
+                # pass 2: deferred percussion
                 dyn_perc = []
                 for i, prog_list in enumerate(prog_record):
                     if len(prog_list) > 0:
-                        print(i, len(prog_list), prog_list[0])
                         if (0, 127) in prog_list:
                             if len(prog_list) == 1:
                                 perc_count -= 1
                                 track.insert(1, TOGGLE_DRUMS(i, True))
+                                print("Channel %i: static percussion allocated" % i)
                             else:
                                 dyn_perc.append(i)
                 for i in range(perc_count):
                     track.insert(1, TOGGLE_DRUMS(10+i, True))
+                    print("Channel %i: dynamic percussion allocated" % (10+i))
 
-                if perc_counts.get(perc_count) is None: perc_counts[perc_count] = []
-                perc_counts[perc_count].append(filename)
+                if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
+                perc_counts[perc_count].append(filename) # debug
                 if perc_count > 0:
                     dyn_perc_chan = {}
                     for i in dyn_perc:
                         orig_prog[i] = (0, 0)
-                        # dyn_perc_chan[i] = -1
                     for msg in track:
                         if msg.type in CHANNEL_EVENTS and msg.channel in dyn_perc:
+                            # TO-DO: This needs work
                             prog = orig_prog[msg.channel]
                             if msg.is_cc(0):
                                 prog = (msg.value, prog[1])
                             elif msg.type == 'program_change':
                                 prog = (prog[0], msg.program)
-
-                            if prog == (0, 127):
+                            elif prog == (0, 127):
                                 if dyn_perc_chan.get(msg.channel) is None:
                                     for i in range(10, 16):
                                         if i not in dyn_perc_chan:
@@ -596,10 +597,7 @@ def main():
 
                 mid.tracks[mid.tracks.index(og_track)] = track
 
-                # pass 2: deferred percussion
-
                 print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
-                print("Peak channel:", peak_chan)
                 total_og_len += len(og_track)
                 total_len += len(track)
 
@@ -610,6 +608,7 @@ def main():
     print("Tweaks:", ntweaks)
     print("Message reduction:", f"{(total_len / total_og_len):.2%}", "(%i/%i)" % (total_len, total_og_len))
     print("Peak dynamic percussion channel counts:", perc_counts)
+    print("Peak channel ID:", peak_chan, "from", peak_chan_name)
 
     input("Conversion success! Press ENTER to continue...")
 
