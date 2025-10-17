@@ -396,6 +396,7 @@ def main():
                 pre_loop = None
 
                 perc_count = 0
+                peak_chan = 0
 
                 # pass 1
                 for msg in og_track:
@@ -551,6 +552,8 @@ def main():
 
                     queue_and_flush(msg) # flush default message
 
+                    if msg.type in CHANNEL_EVENTS and msg.channel > peak_chan: peak_chan = msg.channel
+
                 dyn_perc = []
                 for i, prog_list in enumerate(prog_record):
                     if len(prog_list) > 0:
@@ -561,24 +564,39 @@ def main():
                                 track.insert(1, TOGGLE_DRUMS(i, True))
                             else:
                                 dyn_perc.append(i)
-                                track.insert(1, TOGGLE_DRUMS(9+len(dyn_perc), True))
+                for i in range(perc_count):
+                    track.insert(1, TOGGLE_DRUMS(10+i, True))
 
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = []
                 perc_counts[perc_count].append(filename)
+                if perc_count > 0:
+                    dyn_perc_chan = {}
+                    for i in dyn_perc:
+                        orig_prog[i] = (0, 0)
+                        # dyn_perc_chan[i] = -1
+                    for msg in track:
+                        if msg.type in CHANNEL_EVENTS and msg.channel in dyn_perc:
+                            prog = orig_prog[msg.channel]
+                            if msg.is_cc(0):
+                                prog = (msg.value, prog[1])
+                            elif msg.type == 'program_change':
+                                prog = (prog[0], msg.program)
 
-                # pass 2: deferred percussion
-                for i in range(16):
-                    orig_prog[i] = (0, 0)
-                for msg in track:
-                    if msg.type in CHANNEL_EVENTS and msg.channel in dyn_perc:
-                        if msg.is_cc(0):
-                            orig_prog[msg.channel] = (msg.value, orig_prog[msg.channel][1])
-                        elif msg.type == 'program_change':
-                            orig_prog[msg.channel] = (orig_prog[msg.channel][0], msg.program)
-                        if orig_prog[msg.channel] == (0, 127):
-                            msg.channel = 9 + dyn_perc.index(msg.channel)
+                            if prog == (0, 127):
+                                if dyn_perc_chan.get(msg.channel) is None:
+                                    for i in range(10, 16):
+                                        if i not in dyn_perc_chan:
+                                            dyn_perc_chan[msg.channel] = i
+
+                                msg.channel = dyn_perc_chan[msg.channel]
+                            else:
+                                if dyn_perc_chan.get(msg.channel) is not None:
+                                    dyn_perc_chan[msg.channel] = None
+                            orig_prog[msg.channel] = prog
 
                 mid.tracks[mid.tracks.index(og_track)] = track
+
+                # pass 2: deferred percussion
 
                 print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
                 total_og_len += len(og_track)
