@@ -33,14 +33,18 @@ def TOGGLE_DRUMS(chan, on):
 
     return Message("sysex", data = msg)
 
+class DRUMS:
+    def __init__(self, msg):
+        self.channel = msg.channel
+        self.time = msg.time
+        self.type = "drums"
+
+
 source_dir = "./OSV/"
 target_dir = "./OSVMIDI/"
 
-if os.path.exists(target_dir):
-    print("Removing old converts...")
-    shutil.rmtree(target_dir)
-
-os.mkdir(target_dir)
+if not os.path.exists(target_dir):
+    os.mkdir(target_dir)
 
 inst_replace = {
     (  0,  0) : ( 16,  0), # detuned (?)
@@ -410,8 +414,8 @@ def main():
                         nonlocal rest_time
                         rest_time += msg.time
                     def queue(msg):
-                        nonlocal rest_time
-                        msg_queue.append(msg.copy(time=msg.time+rest_time))
+                        nonlocal rest_time; msg.time += rest_time
+                        msg_queue.append(msg)
                         rest_time = 0
                         return msg
                     def flush():
@@ -477,7 +481,7 @@ def main():
                                         new_perc_count += 1
                                 if new_perc_count > perc_count:
                                     perc_count = new_perc_count
-                                suppress(msg); continue
+                                queue_and_flush(DRUMS(msg)); continue
 
                             if chan_prog[msg.channel][0] != new_prog[0]:
                                 queue(Message("control_change", channel = msg.channel, control = 0, value = new_prog[0], time = pop_time(msg)))
