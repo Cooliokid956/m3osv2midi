@@ -1,6 +1,6 @@
 # MOTHER 3 to MIDI (WIP)
 
-Converts MOTHER 3 MIDI rips into files conforming to the General MIDI Level 2 standard
+Converts MOTHER 3 MIDI rips into files conforming to the Roland General Standard (GS).
 
 You need Python.
 
@@ -11,6 +11,6 @@ You need Python.
 3. Execute the script and watch the debug waterfall
 4. Enjoy the music!
 
-This script was originally created to target Microsoft GS Wavetable Synth, due to the game soundbank's shared usage of the Roland SC-88.
+This script was originally created to target Microsoft GS Wavetable Synth, due to the game soundbank's shared usage of the Roland SC-55 (technically 88Pro.)
 
 Most instruments have already been replaced, but some don't have the best fit, and some chords are missing.

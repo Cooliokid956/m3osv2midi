@@ -610,6 +610,6 @@ def main():
     print("Peak dynamic percussion channel counts:", perc_counts)
     print("Peak channel ID:", peak_chan, "from", peak_chan_name)
 
-    input("Conversion success! Press ENTER to continue...")
+    print("Conversion success!")
 
 if __name__ == "__main__": main()
