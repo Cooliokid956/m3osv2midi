@@ -1,0 +1,40 @@
+# This workflow is derived from the "Python application" workflow
+
+name: MOTHER 3 to MIDI
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.11"
+    - name: Install Mido
+      run: |
+        python -m pip install --upgrade pip
+        pip install mido
+    - name: Generate files
+      run: |
+        python fixosv.py
+    - name: Zip files
+      uses: montudor/action-zip@v1
+      with:
+        args: zip -qq -r OSVMIDI.zip OSVMIDI
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: OSVMIDI
+        path: ./OSVMIDI.zip
