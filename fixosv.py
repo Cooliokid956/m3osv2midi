@@ -3,6 +3,7 @@
 import os, shutil
 
 from mido import MidiFile, MidiTrack, Message #, merge_tracks # planned for use with guitar strum emulation
+from mido.messages.checks import check_channel
 
 def clamp(x, a, b): return max(a,min(x, b))
 os.system('cls' if os.name == "nt" else 'clear')
@@ -22,6 +23,7 @@ SKIP_REPLACE = False
 SKIP_TWEAKS  = False
 
 def TOGGLE_DRUMS(chan, on):
+    check_channel(chan)
     xx = 0x11 + chan
     if chan == 9: xx = 0x10
     if chan  > 9: xx -= 1
@@ -61,6 +63,7 @@ inst_replace = {
     (  0, 44) : (  0, 47), # timpani
     (  0, 67) : (  0, 27), # Guitar chord
     (  0, 69) : (  0, 27), # Guitar chord
+    (  0,127) : (128,  0), # Percussion
 }
 def get_inst(inst):
     replace = inst_replace.get(inst)
@@ -369,8 +372,6 @@ def main():
     perc_counts = {}
     total_og_len = 0
     total_len = 0
-    peak_chan = 0
-    peak_chan_name = ""
 
     for file in os.listdir(os.fsencode(source_dir)):
         filename = os.fsdecode(file)
@@ -400,6 +401,7 @@ def main():
                 pre_loop_perc_bank = None
 
                 perc_count = 0
+                peak_chan = 0
 
                 # pass 1
                 for msg in og_track:
@@ -475,6 +477,7 @@ def main():
                                         new_perc_count += 1
                                 if new_perc_count > perc_count:
                                     perc_count = new_perc_count
+                                suppress(msg); continue
 
                             if chan_prog[msg.channel][0] != new_prog[0]:
                                 queue(Message("control_change", channel = msg.channel, control = 0, value = new_prog[0], time = pop_time(msg)))
@@ -491,7 +494,7 @@ def main():
                         else: suppress(msg)
                         continue
 
-                    is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel] == (0, 127)
+                    is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel][0] == 128
 
                     if msg.type in ('note_on', 'note_off'):
                         if is_drums:
@@ -552,7 +555,6 @@ def main():
 
                     if msg.type in CHANNEL_EVENTS and msg.channel > peak_chan:
                         peak_chan = msg.channel
-                        peak_chan_name = filename
 
                 # pass 2: deferred percussion
                 dyn_perc = []
@@ -566,8 +568,8 @@ def main():
                             else:
                                 dyn_perc.append(i)
                 for i in range(perc_count):
-                    track.insert(1, TOGGLE_DRUMS(10+i, True))
-                    print("Channel %i: dynamic percussion allocated" % (10+i))
+                    track.insert(1, TOGGLE_DRUMS(peak_chan+i+1, True))
+                    print("Channel %i: dynamic percussion allocated" % (peak_chan+i+1))
 
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
                 perc_counts[perc_count].append(filename) # debug
@@ -608,7 +610,6 @@ def main():
     print("Tweaks:", ntweaks)
     print("Message reduction:", f"{(total_len / total_og_len):.2%}", "(%i/%i)" % (total_len, total_og_len))
     print("Peak dynamic percussion channel counts:", perc_counts)
-    print("Peak channel ID:", peak_chan, "from", peak_chan_name)
 
     print("Conversion success!")
 
