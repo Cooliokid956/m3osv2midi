@@ -587,20 +587,21 @@ def main():
                             if msg.type == "marker" and msg.text[:5] == "drums":
                                 on = msg.text[5] == '|'
                                 channel = int(msg.text[6:])
-                                print("drums", ("on" if on else "off"), "channel %i" % channel)
                                 if channel in dyn_perc:
                                     if on:
                                         for i in range(peak_chan, 16):
-                                            if i not in dyn_perc_chan:
+                                            if i not in dyn_perc_chan.values():
                                                 dyn_perc_chan[channel] = i
-                                                print("drums", ("on" if on else "off"), "channel %i allocated to %i" % (channel, i))
+                                                print("drums on channel %i allocated to %i" % (channel, i))
                                                 break
-                                    else: dyn_perc_chan[channel] = None
+                                    else:
+                                        print("drums off channel %i deallocated %i" % (channel, dyn_perc_chan[channel] or -1))
+                                        dyn_perc_chan[channel] = None
                                 else: print("drums", ("on" if on else "off"), "channel %i" % channel)
                                 track.remove(msg)
 
-                            if msg.type in CHANNEL_EVENTS and dyn_perc_chan.get(msg.channel):
-                                msg.channel = dyn_perc_chan[msg.channel]
+                            if msg.type in CHANNEL_EVENTS:
+                                msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
 
                 header.extend(track)
                 mid.tracks[mid.tracks.index(og_track)] = header
