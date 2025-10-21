@@ -17,7 +17,7 @@ ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
 # settings
 LOOPS        = 1
-DEFER_DRUMS  = False
+DEFER_DRUMS  = True # True if targeting MSGS, since that kills notes when toggling percussion modes; SpessaSynth works wonderfully without
 INSTANT_CUT  = False
 SKIP_REPLACE = False
 SKIP_TWEAKS  = False
@@ -34,8 +34,8 @@ def TOGGLE_DRUMS(chan, on):
     return Message("sysex", data = msg)
 
 def DRUMS(msg, on):
-    if not DEFER_DRUMS: return TOGGLE_DRUMS(msg.channel, on)
-    return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel))
+    return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel)) \
+        if DEFER_DRUMS else TOGGLE_DRUMS(msg.channel, on)
 
 source_dir = "./OSV/"
 target_dir = "./OSVMIDI/"
@@ -561,6 +561,7 @@ def main():
 
                 # pass 2: deferred percussion
                 if DEFER_DRUMS:
+                    peak_chan += 1
                     dyn_perc = []
                     for i, prog_list in enumerate(prog_record):
                         if len(prog_list) > 0:
@@ -572,8 +573,8 @@ def main():
                                 else:
                                     dyn_perc.append(i)
                     for i in range(perc_count):
-                        header.append(TOGGLE_DRUMS(peak_chan+i+1, True))
-                        print("Channel %i: dynamic percussion allocated" % (peak_chan+i+1))
+                        header.append(TOGGLE_DRUMS(peak_chan+i, True))
+                        print("Channel %i: dynamic percussion allocated" % (peak_chan+i))
 
                     if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
                     perc_counts[perc_count].append(filename) # debug
@@ -589,10 +590,13 @@ def main():
                                 print("drums", ("on" if on else "off"), "channel %i" % channel)
                                 if channel in dyn_perc:
                                     if on:
-                                        for i in range(10, 16):
+                                        for i in range(peak_chan, 16):
                                             if i not in dyn_perc_chan:
                                                 dyn_perc_chan[channel] = i
+                                                print("drums", ("on" if on else "off"), "channel %i allocated to %i" % (channel, i))
+                                                break
                                     else: dyn_perc_chan[channel] = None
+                                else: print("drums", ("on" if on else "off"), "channel %i" % channel)
                                 track.remove(msg)
 
                             if msg.type in CHANNEL_EVENTS and dyn_perc_chan.get(msg.channel):
