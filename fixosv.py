@@ -375,7 +375,7 @@ def main():
     total_og_len = 0
     total_len = 0
 
-    bomb = 999
+    bomb = 225
 
     for file in os.listdir(os.fsencode(source_dir)):
         filename = os.fsdecode(file)
@@ -562,12 +562,14 @@ def main():
                 # pass 2: deferred percussion
                 if DEFER_DRUMS:
                     peak_chan += 1
+                    static_perc = 0
                     dyn_perc = []
                     for i, prog_list in enumerate(prog_record):
                         if len(prog_list) > 0:
                             if (128, 0) in prog_list:
                                 if len(prog_list) == 1:
                                     perc_count -= 1
+                                    static_perc += 1
                                     header.append(TOGGLE_DRUMS(i, True))
                                     print("Channel %i: static percussion allocated" % i)
                                 else:
@@ -579,7 +581,7 @@ def main():
                     if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
                     perc_counts[perc_count].append(filename) # debug
 
-                    if perc_count + len(dyn_perc) > 0:
+                    if static_perc + len(dyn_perc) > 0:
                         dyn_perc_chan = {}
                         for i in dyn_perc:
                             orig_prog[i] = (0, 0)
@@ -606,8 +608,8 @@ def main():
                 header.extend(track)
                 mid.tracks[mid.tracks.index(og_track)] = header
 
-                # for msg in header:
-                #     print(msg, end=",  ")
+                for msg in header:
+                    print(msg, end=",  ")
 
                 bomb -= 1
                 if not bomb: raise NameError
@@ -622,7 +624,7 @@ def main():
     print("Program Overrides:", converts)
     print("Tweaks:", ntweaks)
     print("Message reduction:", f"{(total_len / total_og_len):.2%}", "(%i/%i)" % (total_len, total_og_len))
-    # print("Peak dynamic percussion channel counts:", perc_counts)
+    print("Peak dynamic percussion channel counts:", perc_counts)
 
     print("Conversion success!")
 
