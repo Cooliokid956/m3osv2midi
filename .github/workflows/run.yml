@@ -17,6 +17,18 @@ permissions:
 
 jobs:
   build:
+    strategy:
+      matrix:
+        loop:
+        - name: -NOLOOP
+          args: 
+        - name: 
+          args: --loop
+        conf:
+        - name: SPESSA
+          args: 
+        - name: MSGS
+          args: --defer-drums
 
     runs-on: ubuntu-latest
 
@@ -32,9 +44,9 @@ jobs:
         pip install mido
     - name: Generate files
       run: |
-        python fixosv.py
+        python fixosv.py ${{ matrix.conf.args }} ${{ matrix.loop.args }}
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: OSVMIDI
+        name: OSV${{ matrix.conf.name }}${{ matrix.loop.name }}
         path: ./OSVMIDI

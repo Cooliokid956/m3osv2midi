@@ -16,11 +16,16 @@ CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
 # settings
-LOOPS        = 1
-DEFER_DRUMS  = True
-INSTANT_CUT  = False
-SKIP_REPLACE = False
-SKIP_TWEAKS  = False
+LOOPS = 0
+for arg in sys.argv:
+    if arg[:6] == "--loop":
+        LOOPS = 1
+        if arg[6:8] == "s=": LOOPS = int(arg[8:])
+        break
+DEFER_DRUMS  = "--defer-drums"  in sys.argv
+INSTANT_CUT  = "--instant-cut"  in sys.argv
+SKIP_REPLACE = "--skip-replace" in sys.argv
+SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
 
 def TOGGLE_DRUMS(chan, on):
     check_channel(chan)
