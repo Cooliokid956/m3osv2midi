@@ -1,6 +1,6 @@
 # MOTHER 3 OSV to MIDI
 
-import os, shutil
+import os
 
 from mido import MidiFile, MidiTrack, Message, MetaMessage #, merge_tracks # planned for use with guitar strum emulation
 from mido.messages.checks import check_channel
@@ -17,7 +17,7 @@ ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
 # settings
 LOOPS        = 1
-DEFER_DRUMS  = True # True if targeting MSGS, since that kills notes when toggling percussion modes; SpessaSynth works wonderfully without
+DEFER_DRUMS  = True
 INSTANT_CUT  = False
 SKIP_REPLACE = False
 SKIP_TWEAKS  = False
@@ -375,7 +375,7 @@ def main():
     total_og_len = 0
     total_len = 0
 
-    bomb = 225
+    bomb = 999
 
     for file in os.listdir(os.fsencode(source_dir)):
         filename = os.fsdecode(file)
@@ -411,10 +411,10 @@ def main():
                     def suppress(msg):
                         nonlocal rest_time
                         rest_time += msg.time
-                    def queue(msg):
-                        nonlocal rest_time; msg.time += rest_time
+                    def queue(msg, ignore_rest=False):
+                        if not ignore_rest:
+                            nonlocal rest_time; msg.time += rest_time; rest_time = 0
                         msg_queue.append(msg)
-                        rest_time = 0
                         return msg
                     def flush():
                         track.extend(msg_queue)
@@ -428,7 +428,7 @@ def main():
 
                     # Altered; begin file entry
                     if not altered and msg.type in ALTERED_EVENTS:
-                        altered = True; print(filename[11:-4].ljust(52))
+                        altered = True; print(filename[11:-4] or filename[:-4])
 
                     # looping
                     if msg.type == 'marker':
@@ -477,10 +477,10 @@ def main():
                                     perc_count = new_perc_count
 
                                 chan_prog[msg.channel] = new_prog
-                                queue(DRUMS(msg, True))
+                                queue(DRUMS(msg, True), True)
                                 queue_and_flush(msg.copy(program=DEF_BANK)); continue
                             elif chan_prog[msg.channel][0] == 128:
-                                queue(DRUMS(msg, False))
+                                queue(DRUMS(msg, False), True)
 
                             if chan_prog[msg.channel][0] != new_prog[0]:
                                 queue(Message("control_change", channel = msg.channel, control = 0, value = new_prog[0], time = pop_time(msg)))
@@ -568,12 +568,13 @@ def main():
                         if len(prog_list) > 0:
                             if (128, 0) in prog_list:
                                 if len(prog_list) == 1:
-                                    perc_count -= 1
                                     static_perc += 1
                                     header.append(TOGGLE_DRUMS(i, True))
                                     print("Channel %i: static percussion allocated" % i)
                                 else:
                                     dyn_perc.append(i)
+                    
+                    perc_count -= static_perc
                     for i in range(perc_count):
                         header.append(TOGGLE_DRUMS(peak_chan+i, True))
                         print("Channel %i: dynamic percussion allocated" % (peak_chan+i))
@@ -583,33 +584,36 @@ def main():
 
                     if static_perc + len(dyn_perc) > 0:
                         dyn_perc_chan = {}
-                        for i in dyn_perc:
-                            orig_prog[i] = (0, 0)
-                        for msg in track:
+
+                        i = 0
+                        while i < len(track):
+                            msg = track[i]
+
                             if msg.type == "marker" and msg.text[:5] == "drums":
                                 on = msg.text[5] == '|'
                                 channel = int(msg.text[6:])
                                 if channel in dyn_perc:
                                     if on:
-                                        for i in range(peak_chan, 16):
-                                            if i not in dyn_perc_chan.values():
-                                                dyn_perc_chan[channel] = i
-                                                print("drums on channel %i allocated to %i" % (channel, i))
+                                        for j in range(peak_chan, 16):
+                                            if j not in dyn_perc_chan.values():
+                                                dyn_perc_chan[channel] = j
+                                                print("drums on channel %i allocated to %i" % (channel, j))
                                                 break
                                     else:
                                         print("drums off channel %i deallocated %i" % (channel, dyn_perc_chan[channel] or -1))
                                         dyn_perc_chan[channel] = None
                                 else: print("drums", ("on" if on else "off"), "channel %i" % channel)
-                                track.remove(msg)
+                                del track[i]; msg = track[i]
 
                             if msg.type in CHANNEL_EVENTS:
                                 msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
+                            i += 1
 
                 header.extend(track)
                 mid.tracks[mid.tracks.index(og_track)] = header
 
-                for msg in header:
-                    print(msg, end=",  ")
+                # for msg in header:
+                #     print(msg, end=",  ")
 
                 bomb -= 1
                 if not bomb: raise NameError
@@ -624,7 +628,7 @@ def main():
     print("Program Overrides:", converts)
     print("Tweaks:", ntweaks)
     print("Message reduction:", f"{(total_len / total_og_len):.2%}", "(%i/%i)" % (total_len, total_og_len))
-    print("Peak dynamic percussion channel counts:", perc_counts)
+    # print("Peak dynamic percussion channel counts:", perc_counts)
 
     print("Conversion success!")
 

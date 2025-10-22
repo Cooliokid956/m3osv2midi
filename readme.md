@@ -13,4 +13,11 @@ You need Python.
 
 This script was originally created to target Microsoft GS Wavetable Synth, due to the game soundbank's shared usage of the Roland SC-55 (technically 88Pro.)
 
+Tested target synths:
+- Microsoft GS Wavetable Synth
+  - `DEFER_DRUMS` must be `True`, otherwise notes will cut out when switching to drum mode
+  - `INSTANT_CUT` can be set to `True`, if you want that
+- SpessaSynth
+  - `DEFER_DRUMS` can be set to `False`, since this synth seamlessly switches to drum mode (recommended)
+
 Most instruments have already been replaced, but some don't have the best fit, and some chords are missing.
