@@ -1,6 +1,6 @@
 # MOTHER 3 OSV to MIDI
 
-import os
+import os, sys
 
 from mido import MidiFile, MidiTrack, Message, MetaMessage #, merge_tracks # planned for use with guitar strum emulation
 from mido.messages.checks import check_channel
