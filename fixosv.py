@@ -138,6 +138,9 @@ DEF_BANK = 0 # 16 for Power
         I should probably add GM Level 2 instrument names as well
 
         Add more chords and introduce auxiliary channels (keep track of unused channels, begin airing before school open backstor ) 
+
+        10/22/2023, 6:12:15 PM
+        Those auxiliary channels exist in a certain way (dynamic drum channel allocation) but I'll still need to find a solution for things like the guitar chords
 """
 
 inst_name = {
@@ -380,7 +383,7 @@ def main():
     total_og_len = 0
     total_len = 0
 
-    bomb = 999
+    bomb = 999 #.BOMB
 
     for file in os.listdir(os.fsencode(source_dir)):
         filename = os.fsdecode(file)
@@ -617,11 +620,11 @@ def main():
                 header.extend(track)
                 mid.tracks[mid.tracks.index(og_track)] = header
 
-                # for msg in header:
-                #     print(msg, end=",  ")
+                for msg in header: #.MSGDUMP
+                    print(msg, end=",  ") #.MSGDUMP
 
-                bomb -= 1
-                if not bomb: raise NameError
+                bomb -= 1 #.BOMB
+                if not bomb: raise NameError #.BOMB
 
                 print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
                 total_og_len += len(og_track)
