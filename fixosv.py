@@ -22,7 +22,8 @@ for arg in sys.argv:
         LOOPS = 1
         if arg[6:8] == "s=": LOOPS = int(arg[8:])
         break
-DEFER_DRUMS  = "--defer-drums"  in sys.argv
+GM_DRUMS     = "--gm-drums"     in sys.argv
+DEFER_DRUMS  = "--defer-drums"  in sys.argv or GM_DRUMS
 INSTANT_CUT  = "--instant-cut"  in sys.argv
 SKIP_REPLACE = "--skip-replace" in sys.argv
 SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
@@ -438,6 +439,8 @@ def main():
                     if not altered and msg.type in ALTERED_EVENTS:
                         altered = True; print(filename[11:-4] or filename[:-4])
 
+                    if GM_DRUMS and msg.type in CHANNEL_EVENTS and msg.channel > 8: msg.channel += 1
+
                     # looping
                     if msg.type == 'marker':
                         queue_and_flush(msg)
@@ -509,6 +512,7 @@ def main():
 
                     if msg.type in ('note_on', 'note_off'):
                         if is_drums:
+                            channel = 9 if GM_DRUMS else msg.channel
                             if msg.note in (35, 56): # 56 is proper, 35 is different
                                 queue(Message(type = "program_change", channel = 14, program = 119, time = pop_time(msg)))
                                 queue_and_flush(msg.copy(channel=14, note=60))
@@ -519,9 +523,9 @@ def main():
                             if remap is not None:
                                 bank = remap[0]
                                 msg.note = remap[1]
-                            if bank != chan_prog[msg.channel][1]:
+                            if bank != chan_prog[channel][1]:
                                 queue(Message(type = "program_change", channel = msg.channel, program = bank, time = pop_time(msg)))
-                                chan_prog[msg.channel] = (128, bank)
+                                chan_prog[channel] = (128, bank)
                             queue_and_flush(msg)
                             continue
 
@@ -592,6 +596,7 @@ def main():
 
                     if static_perc + len(dyn_perc) > 0:
                         dyn_perc_chan = {}
+                        if GM_DRUMS and peak_chan == 9: peak_chan = 10
 
                         i = 0
                         while i < len(track):
@@ -600,28 +605,30 @@ def main():
                             if msg.type == "marker" and msg.text[:5] == "drums":
                                 on = msg.text[5] == '|'
                                 channel = int(msg.text[6:])
-                                if channel in dyn_perc:
+                                if channel in dyn_perc or GM_DRUMS:
                                     if on:
                                         for j in range(peak_chan, 16):
+                                            if GM_DRUMS: dyn_perc_chan[channel] = 9; break
                                             if j not in dyn_perc_chan.values():
                                                 dyn_perc_chan[channel] = j
                                                 print("drums on channel %i allocated to %i" % (channel, j))
                                                 break
                                     else:
-                                        print("drums off channel %i deallocated %i" % (channel, dyn_perc_chan[channel] or -1))
+                                        print("drums off channel %i deallocated %i" % (channel, dyn_perc_chan.get(channel) or -1))
                                         dyn_perc_chan[channel] = None
                                 else: print("drums", ("on" if on else "off"), "channel %i" % channel)
                                 del track[i]; msg = track[i]
 
                             if msg.type in CHANNEL_EVENTS:
+                                # if GM_DRUMS and msg.channel == 9: msg.channel = peak_chan
                                 msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
                             i += 1
 
                 header.extend(track)
-                mid.tracks[mid.tracks.index(og_track)] = header
+                mid.tracks[mid.tracks.index(og_track)] = header if not GM_DRUMS else track
 
-                for msg in header: #.MSGDUMP
-                    print(msg, end=",  ") #.MSGDUMP
+                # for msg in header: #.MSGDUMP
+                #     print(msg, end=",  ") #.MSGDUMP
 
                 bomb -= 1 #.BOMB
                 if not bomb: raise NameError #.BOMB
