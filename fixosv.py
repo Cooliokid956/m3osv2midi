@@ -2,7 +2,7 @@
 
 import os, sys
 
-from mido import MidiFile, MidiTrack, Message, MetaMessage #, merge_tracks # planned for use with guitar strum emulation
+from mido import MidiFile, MidiTrack, Message, MetaMessage, merge_tracks # planned for use with guitar strum emulation
 from mido.messages.checks import check_channel
 
 def clamp(x, a, b): return max(a,min(x, b))
@@ -70,6 +70,7 @@ inst_replace = {
     (  0, 44) : (  0, 47), # timpani
     (  0, 67) : (  0, 27), # Guitar chord
     (  0, 69) : (  0, 27), # Guitar chord
+    (  0,120) : (  0, 30), # Dist.Guitar
     (  0,127) : (128,  0), # Percussion
 }
 def get_inst(inst):
@@ -390,252 +391,253 @@ def main():
         filename = os.fsdecode(file)
         if filename.endswith(".mid"):
             mid = MidiFile(source_dir + filename)
+            og_track = merge_tracks(mid.tracks) if len(mid.tracks) > 1 else mid.tracks[0]
 
-            for og_track in mid.tracks:
-                header = [GS_RESET, TOGGLE_DRUMS(9, False)]
-                track = MidiTrack()
-                altered = False
-                bank_switch = False
+            header = [GS_RESET, TOGGLE_DRUMS(9, False)]
+            track = MidiTrack()
+            altered = False
+            bank_switch = False
 
-                orig_prog = []
-                chan_prog = []
-                prog_record = []
-                for i in range(16):
-                    orig_prog.append((0, 0))
-                    chan_prog.append((0, 0))
-                    prog_record.append([])
-                rest_time = 0
+            orig_prog = []
+            chan_prog = []
+            prog_record = []
+            for i in range(16):
+                orig_prog.append((0, 0))
+                chan_prog.append((0, 0))
+                prog_record.append([])
+            rest_time = 0
 
-                tweaked = False
+            tweaked = False
 
-                pre_loop_track = None
-                pre_loop_perc_bank = None
+            pre_loop_track = None
+            pre_loop_perc_bank = None
 
-                perc_count = 0
-                peak_chan = 0
+            perc_count = 0
+            peak_chan = 0
 
-                # pass 1
-                for msg in og_track:
-                    msg_queue = []
-                    def suppress(msg):
-                        nonlocal rest_time
-                        rest_time += msg.time
-                    def queue(msg, ignore_rest=False):
-                        if not ignore_rest:
-                            nonlocal rest_time; msg.time += rest_time; rest_time = 0
-                        msg_queue.append(msg)
-                        return msg
-                    def flush():
-                        track.extend(msg_queue)
-                        msg_queue.clear()
-                    def queue_and_flush(msg):
-                        queue(msg); flush()
-                    def pop_time(msg):
-                        time = msg.time
-                        msg.time = 0
-                        return time
+            # pass 1
+            for msg in og_track:
+                msg_queue = []
+                def suppress(msg):
+                    nonlocal rest_time
+                    rest_time += msg.time
+                def queue(msg, ignore_rest=False):
+                    if not ignore_rest:
+                        nonlocal rest_time; msg.time += rest_time; rest_time = 0
+                    msg_queue.append(msg)
+                    return msg
+                def flush():
+                    track.extend(msg_queue)
+                    msg_queue.clear()
+                def queue_and_flush(msg):
+                    queue(msg); flush()
+                def pop_time(msg):
+                    time = msg.time
+                    msg.time = 0
+                    return time
 
-                    # Altered; begin file entry
-                    if not altered and msg.type in ALTERED_EVENTS:
-                        altered = True; print(filename[11:-4] or filename[:-4])
+                # Altered; begin file entry
+                if not altered and msg.type in ALTERED_EVENTS:
+                    altered = True; print(filename[11:-4] or filename[:-4])
 
-                    if GM_DRUMS and msg.type in CHANNEL_EVENTS and msg.channel > 8: msg.channel += 1
+                if GM_DRUMS and msg.type in CHANNEL_EVENTS and msg.channel > 8: msg.channel += 1
 
-                    # looping
-                    if msg.type == 'marker':
-                        queue_and_flush(msg)
-                        if LOOPS > 0:
-                            match msg.text:
-                                case "loopStart":
-                                    pre_loop_track = track
-                                    track = MidiTrack()
-                                    # pre_loop_perc_bank = perc_bank
-                                    # queue_and_flush(Message("program_change", channel = 9, program = perc_bank)) # find a better way to do this
-                                case "loopEnd":
-                                    pre_loop_track.extend(track * (LOOPS + 1))
-                                    track = pre_loop_track
-                        continue
+                # looping
+                if msg.type == 'marker':
+                    queue_and_flush(msg)
+                    if LOOPS > 0:
+                        match msg.text:
+                            case "loopStart":
+                                pre_loop_track = track
+                                track = MidiTrack()
+                                # pre_loop_perc_bank = perc_bank
+                                # queue_and_flush(Message("program_change", channel = 9, program = perc_bank)) # find a better way to do this
+                            case "loopEnd":
+                                pre_loop_track.extend(track * (LOOPS + 1))
+                                track = pre_loop_track
+                    continue
 
-                    if msg.type == 'sysex': suppress(msg); continue#print("sysex:", msg.data); continue
+                if msg.type == 'sysex': suppress(msg); continue#print("sysex:", msg.data); continue
 
-                    if msg.is_cc(0):
-                        if not bank_switch and msg.value != 0: bank_switch = True; print("Contains special instruments")
-                        orig_prog[msg.channel] = (msg.value, orig_prog[msg.channel][1])
-                        queue_and_flush(msg) if SKIP_REPLACE else suppress(msg)
-                        continue
+                if msg.is_cc(0):
+                    if not bank_switch and msg.value != 0: bank_switch = True; print("Contains special instruments")
+                    orig_prog[msg.channel] = (msg.value, orig_prog[msg.channel][1])
+                    queue_and_flush(msg) if SKIP_REPLACE else suppress(msg)
+                    continue
 
-                    if msg.type == 'program_change':
-                        orig_prog[msg.channel] = (orig_prog[msg.channel][0], msg.program)
+                if msg.type == 'program_change':
+                    orig_prog[msg.channel] = (orig_prog[msg.channel][0], msg.program)
 
-                        if SKIP_REPLACE: queue_and_flush(msg); continue
-                        # dump song's instruments
-                        if "Welcome!" in filename:
-                            print("%i %s"
-                                 % (msg.channel,
-                                    inst_name[(orig_prog[msg.channel][0], msg.program)]))
-                        # END dumping
+                    if SKIP_REPLACE: queue_and_flush(msg); continue
+                    # dump song's instruments
+                    if "Welcome!" in filename:
+                        print("%i %s"
+                             % (msg.channel,
+                                inst_name[(orig_prog[msg.channel][0], msg.program)]))
+                    # END dumping
 
-                        new_prog, replaced = get_inst(orig_prog[msg.channel])
-                        if chan_prog[msg.channel] != new_prog:
-                            # static perc count test
-                            prog_record[msg.channel].append(new_prog)
-                            if orig_prog[msg.channel] == (0, 127):
-                                new_perc_count = 0
-                                for prog in orig_prog:
-                                    if prog == (0, 127):
-                                        new_perc_count += 1
-                                if new_perc_count > perc_count:
-                                    perc_count = new_perc_count
+                    new_prog, replaced = get_inst(orig_prog[msg.channel])
+                    if chan_prog[msg.channel] != new_prog:
+                        # static perc count test
+                        prog_record[msg.channel].append(new_prog)
+                        if orig_prog[msg.channel] == (0, 127):
+                            new_perc_count = 0
+                            for prog in orig_prog:
+                                if prog == (0, 127):
+                                    new_perc_count += 1
+                            if new_perc_count > perc_count:
+                                perc_count = new_perc_count
 
-                                chan_prog[msg.channel] = new_prog
-                                queue(DRUMS(msg, True), True)
-                                queue_and_flush(msg.copy(program=DEF_BANK)); continue
-                            elif chan_prog[msg.channel][0] == 128:
-                                queue(DRUMS(msg, False), True)
-
-                            if chan_prog[msg.channel][0] != new_prog[0]:
-                                queue(Message("control_change", channel = msg.channel, control = 0, value = new_prog[0], time = pop_time(msg)))
                             chan_prog[msg.channel] = new_prog
-                            msg.program = new_prog[1]
-                            if replaced:
-                                converts += 1
-                                print("%s %s -> %s"
-                                     % (str(msg.channel).rjust(2),
-                                        inst_name[orig_prog[msg.channel]].ljust(23),
-                                        inst_name[new_prog].ljust(23)))
+                            queue(DRUMS(msg, True), True)
+                            queue_and_flush(msg.copy(program=DEF_BANK)); continue
+                        elif chan_prog[msg.channel][0] == 128:
+                            queue(DRUMS(msg, False), True)
 
-                            queue_and_flush(msg)
-                        else: suppress(msg)
-                        continue
+                        if chan_prog[msg.channel][0] != new_prog[0]:
+                            queue(Message("control_change", channel = msg.channel, control = 0, value = new_prog[0], time = pop_time(msg)))
+                        chan_prog[msg.channel] = new_prog
+                        msg.program = new_prog[1]
+                        if replaced:
+                            converts += 1
+                            print("%s %s -> %s"
+                                 % (str(msg.channel).rjust(2),
+                                    inst_name[orig_prog[msg.channel]].ljust(23),
+                                    inst_name[new_prog].ljust(23)))
 
-                    is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel][0] == 128
+                        queue_and_flush(msg)
+                    else: suppress(msg)
+                    continue
 
-                    if msg.type in ('note_on', 'note_off'):
-                        if is_drums:
-                            channel = 9 if GM_DRUMS else msg.channel
-                            if msg.note in (35, 56): # 56 is proper, 35 is different
-                                queue(Message(type = "program_change", channel = 14, program = 119, time = pop_time(msg)))
-                                queue_and_flush(msg.copy(channel=14, note=60))
-                                continue
+                is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel][0] == 128
 
-                            remap = drums_remap.get(msg.note)
-                            bank = DEF_BANK
-                            if remap is not None:
-                                bank = remap[0]
-                                msg.note = remap[1]
-                            if bank != chan_prog[channel][1]:
-                                queue(Message(type = "program_change", channel = msg.channel, program = bank, time = pop_time(msg)))
-                                chan_prog[channel] = (128, bank)
-                            queue_and_flush(msg)
+                if msg.type in ('note_on', 'note_off'):
+                    if is_drums:
+                        channel = 9 if GM_DRUMS else msg.channel
+                        if msg.note in (35, 56): # 56 is proper, 35 is different
+                            queue(Message(type = "program_change", channel = 15, program = 119, time = pop_time(msg)))
+                            queue_and_flush(msg.copy(channel=15, note=60))
                             continue
 
-                        tweaks = inst_tweaks.get(orig_prog[msg.channel])
-                        cut = False
-                        def_queue = True
-                        if tweaks is not None and not SKIP_TWEAKS:
-                            ntweaks += 1
-
-                            for tweak in tweaks:
-                                if not tweaked:
-                                    tweaked = True; print(inst_name[orig_prog[msg.channel]], "tweaked")
-                                if type(tweak) is Chord:
-
-                                    for offset in tweak.offsets:
-                                        note = clamp(msg.note + offset[0], 0, 127)
-                                        velocity = int(msg.velocity * offset[1])
-
-                                        if msg.type == "note_off" and INSTANT_CUT:
-                                            mtype = "note_on"
-                                            velocity = 1
-                                            cut = True
-                                        else: mtype = msg.type
-
-                                        queue(Message(type = mtype, channel = msg.channel, note = note, velocity = velocity, time = msg.time if tweak.offsets.index(offset) == 0 else 0))
-                                        if msg.type == "note_off" and INSTANT_CUT: queue(Message(type = "note_off", channel = msg.channel, note = note, velocity = 0,time = 0))
-                                    def_queue = False
-
-                                elif type(tweak) is Velocity:
-                                    msg.velocity = int(msg.velocity * tweak.mult)
-
-                        if not cut and msg.type == "note_off" and INSTANT_CUT:
-                            queue(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
-                            queue_and_flush(Message(type = "note_off", channel = msg.channel, note = msg.note, velocity = 0,time = 0))
-                            continue
-
-                        if def_queue: queue(msg)
-                        flush()
+                        remap = drums_remap.get(msg.note)
+                        bank = DEF_BANK
+                        if remap is not None:
+                            bank = remap[0]
+                            msg.note = remap[1]
+                        if bank != chan_prog[channel][1]:
+                            queue(Message(type = "program_change", channel = msg.channel, program = bank, time = pop_time(msg)))
+                            chan_prog[channel] = (128, bank)
+                        queue_and_flush(msg)
                         continue
 
-                    queue_and_flush(msg) # flush default message
+                    tweaks = inst_tweaks.get(orig_prog[msg.channel])
+                    cut = False
+                    def_queue = True
+                    if tweaks is not None and not SKIP_TWEAKS:
+                        ntweaks += 1
 
-                    if msg.type in CHANNEL_EVENTS and msg.channel > peak_chan:
-                        peak_chan = msg.channel
+                        for tweak in tweaks:
+                            if not tweaked:
+                                tweaked = True; print(inst_name[orig_prog[msg.channel]], "tweaked")
+                            if type(tweak) is Chord:
 
-                # pass 2: deferred percussion
-                if DEFER_DRUMS:
-                    peak_chan += 1
-                    static_perc = 0
-                    dyn_perc = []
-                    for i, prog_list in enumerate(prog_record):
-                        if len(prog_list) > 0:
-                            if (128, 0) in prog_list:
-                                if len(prog_list) == 1:
-                                    static_perc += 1
-                                    header.append(TOGGLE_DRUMS(i, True))
-                                    print("Channel %i: static percussion allocated" % i)
+                                for offset in tweak.offsets:
+                                    note = clamp(msg.note + offset[0], 0, 127)
+                                    velocity = int(msg.velocity * offset[1])
+
+                                    if msg.type == "note_off" and INSTANT_CUT:
+                                        mtype = "note_on"
+                                        velocity = 1
+                                        cut = True
+                                    else: mtype = msg.type
+
+                                    queue(Message(type = mtype, channel = msg.channel, note = note, velocity = velocity, time = msg.time if tweak.offsets.index(offset) == 0 else 0))
+                                    if msg.type == "note_off" and INSTANT_CUT: queue(Message(type = "note_off", channel = msg.channel, note = note, velocity = 0,time = 0))
+                                def_queue = False
+
+                            elif type(tweak) is Velocity:
+                                msg.velocity = int(msg.velocity * tweak.mult)
+
+                    if not cut and msg.type == "note_off" and INSTANT_CUT:
+                        queue(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
+                        queue_and_flush(Message(type = "note_off", channel = msg.channel, note = msg.note, velocity = 0,time = 0))
+                        continue
+
+                    if def_queue: queue(msg)
+                    flush()
+                    continue
+
+                queue_and_flush(msg) # flush default message
+
+                if msg.type in CHANNEL_EVENTS and msg.channel > peak_chan:
+                    peak_chan = msg.channel
+
+            # pass 2: deferred percussion
+            if DEFER_DRUMS:
+                peak_chan += 1
+                static_perc = 0
+                dyn_perc = []
+                for i, prog_list in enumerate(prog_record):
+                    if len(prog_list) > 0:
+                        if (128, 0) in prog_list:
+                            if len(prog_list) == 1:
+                                static_perc += 1
+                                header.append(TOGGLE_DRUMS(i, True))
+                                print("Channel %i: static percussion allocated" % i)
+                            else:
+                                dyn_perc.append(i)
+                
+                perc_count -= static_perc
+                for i in range(perc_count):
+                    header.append(TOGGLE_DRUMS(peak_chan+i, True))
+                    print("Channel %i: dynamic percussion allocated" % (peak_chan+i))
+
+                if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
+                perc_counts[perc_count].append(filename) # debug
+
+                if static_perc + len(dyn_perc) > 0:
+                    dyn_perc_chan = {}
+                    if GM_DRUMS and peak_chan == 9: peak_chan = 10
+
+                    i = 0
+                    while i < len(track):
+                        msg = track[i]
+
+                        if msg.type == "marker" and msg.text[:5] == "drums":
+                            on = msg.text[5] == '|'
+                            channel = int(msg.text[6:])
+                            if channel in dyn_perc or GM_DRUMS:
+                                if on:
+                                    for j in range(peak_chan, 16):
+                                        if GM_DRUMS: dyn_perc_chan[channel] = 9; break
+                                        if j not in dyn_perc_chan.values():
+                                            dyn_perc_chan[channel] = j
+                                            print("drums on channel %i allocated to %i" % (channel, j))
+                                            break
                                 else:
-                                    dyn_perc.append(i)
-                    
-                    perc_count -= static_perc
-                    for i in range(perc_count):
-                        header.append(TOGGLE_DRUMS(peak_chan+i, True))
-                        print("Channel %i: dynamic percussion allocated" % (peak_chan+i))
+                                    print("drums off channel %i deallocated %i" % (channel, dyn_perc_chan.get(channel) or -1))
+                                    dyn_perc_chan[channel] = None
+                            else: print("drums", ("on" if on else "off"), "channel %i" % channel)
+                            del track[i]; msg = track[i]
 
-                    if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
-                    perc_counts[perc_count].append(filename) # debug
+                        if msg.type in CHANNEL_EVENTS:
+                            # if GM_DRUMS and msg.channel == 9: msg.channel = peak_chan
+                            msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
+                        i += 1
 
-                    if static_perc + len(dyn_perc) > 0:
-                        dyn_perc_chan = {}
-                        if GM_DRUMS and peak_chan == 9: peak_chan = 10
+            header.extend(track)
+            mid.tracks = [header if not GM_DRUMS else track]
 
-                        i = 0
-                        while i < len(track):
-                            msg = track[i]
+            # for msg in header: #.MSGDUMP
+            #     print(msg, end=",  ") #.MSGDUMP
 
-                            if msg.type == "marker" and msg.text[:5] == "drums":
-                                on = msg.text[5] == '|'
-                                channel = int(msg.text[6:])
-                                if channel in dyn_perc or GM_DRUMS:
-                                    if on:
-                                        for j in range(peak_chan, 16):
-                                            if GM_DRUMS: dyn_perc_chan[channel] = 9; break
-                                            if j not in dyn_perc_chan.values():
-                                                dyn_perc_chan[channel] = j
-                                                print("drums on channel %i allocated to %i" % (channel, j))
-                                                break
-                                    else:
-                                        print("drums off channel %i deallocated %i" % (channel, dyn_perc_chan.get(channel) or -1))
-                                        dyn_perc_chan[channel] = None
-                                else: print("drums", ("on" if on else "off"), "channel %i" % channel)
-                                del track[i]; msg = track[i]
+            bomb -= 1 #.BOMB
+            if not bomb: raise NameError #.BOMB
 
-                            if msg.type in CHANNEL_EVENTS:
-                                # if GM_DRUMS and msg.channel == 9: msg.channel = peak_chan
-                                msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
-                            i += 1
-
-                header.extend(track)
-                mid.tracks[mid.tracks.index(og_track)] = header if not GM_DRUMS else track
-
-                # for msg in header: #.MSGDUMP
-                #     print(msg, end=",  ") #.MSGDUMP
-
-                bomb -= 1 #.BOMB
-                if not bomb: raise NameError #.BOMB
-
-                print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
-                total_og_len += len(og_track)
-                total_len += len(track)
+            print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
+            total_og_len += len(og_track)
+            total_len += len(track)
+                
 
             mid.save(target_dir + filename)
 
