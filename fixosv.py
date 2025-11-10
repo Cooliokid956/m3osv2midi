@@ -12,20 +12,12 @@ print("MOTHER 3 OSV to MIDI\n")
 def SYSEX(data):
     if type(data) is str:
         data_list = []
+        data = data.replace(" ", "").replace("0x", "")
         while len(data) > 0:
-            if data[0] == " ": data = data[1:]
-            if data[:2] == "0x":
-                try:
-                    data_list.append(int(data[:4], 16))
-                    data = data[4:]
-                    continue
-                except ValueError: pass
             try:
                 data_list.append(int(data[:2], 16))
                 data = data[2:]
-                continue
-            except ValueError: pass
-            data = data[1:]
+            except ValueError: data = data[1:]
 
         data = data_list
     return Message("sysex", data = data)
