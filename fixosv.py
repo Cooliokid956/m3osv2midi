@@ -9,8 +9,29 @@ def clamp(x, a, b): return max(a,min(x, b))
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
 
-GS_RESET = Message("sysex", data = [0x41, 0x10,0x42, 0x12, 0x40,0x00,0x7F, 0x00,0x41])
-                                    # 65,   16,  66,   18,   64,   0, 127,    0,  65
+def SYSEX(data):
+    if type(data) is str:
+        data_list = []
+        while len(data) > 0:
+            if data[0] == " ": data = data[1:]
+            if data[:2] == "0x":
+                try:
+                    data_list.append(int(data[:4], 16))
+                    data = data[4:]
+                    continue
+                except ValueError: pass
+            try:
+                data_list.append(int(data[:2], 16))
+                data = data[2:]
+                continue
+            except ValueError: pass
+            data = data[1:]
+
+        data = data_list
+    return Message("sysex", data = data)
+GM_SYSTEM_ON  = SYSEX("7E 7F 09 01")
+GM2_SYSTEM_ON = SYSEX("7E 7F 09 03")
+GS_RESET      = SYSEX("41 1042 12 40007F 0041")
 
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
