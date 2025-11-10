@@ -13,11 +13,20 @@ You need Python.
 
 This script was originally created to target Microsoft GS Wavetable Synth, due to the game soundbank's shared usage of the Roland SC-55 (technically 88Pro.)
 
-Tested target synths:
+## Available CLI options:
+- `--defer-drums`: Enables drum channel allocation
+  - Channel doesn't toggle drum mode, but messages are instead redirected to one of the allocated drum channels, while in drum mode
+- `--instant-cut`: Enables an MSGS-specific hack for cutting notes off instantly 
+- `--skip-replace`: Skips instrument replacements 
+- `--skip-tweaks`: Skips instrument tweaks
+
+
+## Tested target synths:
 - Microsoft GS Wavetable Synth
-  - `DEFER_DRUMS` must be `True`, otherwise notes will cut out when switching to drum mode
-  - `INSTANT_CUT` can be set to `True`, if you want that
+  - `--defer-drums` must be used, otherwise notes will cut out when switching to drum mode
+  - `--instant-cut` can be used if you want
 - SpessaSynth
-  - `DEFER_DRUMS` can be set to `False`, since this synth seamlessly switches to drum mode (recommended)
+  - `--defer-drums` is not needed, since this synth seamlessly toggles to/from drum mode
+  - `--instant-cut` doesn't work well with this, but you can achieve a similar effect by enabling Black MIDI Mode (`B` key or toggle it in `Config > Black MIDI mode`)
 
 Most instruments have already been replaced, but some don't have the best fit, and some chords are missing.
