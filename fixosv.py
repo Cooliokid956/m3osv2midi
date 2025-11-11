@@ -47,10 +47,10 @@ def TOGGLE_DRUMS(chan, on):
     if chan == 9: xx = 0x10
     if chan  > 9: xx -= 1
     yy = 0x1A - chan
-    msg = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
-           # 65,   16,  66,   18,   64,xx,   21, (1 if on else 0), yy]
+    data = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
+            # 65,   16,  66,   18,   64,xx,   21, (1 if on else 0), yy]
 
-    return Message("sysex", data = msg)
+    return SYSEX(data)
 
 def DRUMS(msg, on):
     return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel)) \
