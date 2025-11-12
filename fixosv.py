@@ -35,17 +35,27 @@ CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
 # settings
-LOOPS = 0
-for arg in sys.argv:
-    if arg[:6] == "--loop":
-        LOOPS = 1
-        if arg[6:8] == "s=": LOOPS = int(arg[8:])
-        break
 GM_DRUMS     = "--gm-drums"     in sys.argv
 DEFER_DRUMS  = "--defer-drums"  in sys.argv or GM_DRUMS
 INSTANT_CUT  = "--instant-cut"  in sys.argv
 SKIP_REPLACE = "--skip-replace" in sys.argv
 SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
+
+LOOPS = 0
+MODE = ""
+for arg in sys.argv:
+    if arg[:6] == "--loop":
+        LOOPS = 1
+        if arg[6:8] == "s=": LOOPS = int(arg[8:])
+        break
+    elif arg[:7] == "--mode=":
+        MODE = arg[7:]
+        match MODE:
+            case "gm": GM_DRUMS = True; DEFER_DRUMS = True
+            case "gm2": pass # drums are toggled in a different way... 
+            case "gs": pass
+            case "msgs": DEFER_DRUMS = True
+            case _: pass
 
 with open(target_dir + "ARGS.TXT", 'w') as f:
     f.write(" ".join(sys.argv[1:]))
