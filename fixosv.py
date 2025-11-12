@@ -9,6 +9,12 @@ def clamp(x, a, b): return max(a,min(x, b))
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
 
+source_dir = "./OSV/"
+target_dir = "./OSVMIDI/"
+
+if not os.path.exists(target_dir):
+    os.mkdir(target_dir)
+
 def SYSEX(data):
     if type(data) is str:
         data_list = []
@@ -41,6 +47,9 @@ INSTANT_CUT  = "--instant-cut"  in sys.argv
 SKIP_REPLACE = "--skip-replace" in sys.argv
 SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
 
+with open(target_dir + "ARGS.TXT", 'w') as f:
+    f.write(" ".join(sys.argv[1:]))
+
 def TOGGLE_DRUMS(chan, on):
     check_channel(chan)
     xx = 0x11 + chan
@@ -55,12 +64,6 @@ def TOGGLE_DRUMS(chan, on):
 def DRUMS(msg, on):
     return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel)) \
         if DEFER_DRUMS else TOGGLE_DRUMS(msg.channel, on)
-
-source_dir = "./OSV/"
-target_dir = "./OSVMIDI/"
-
-if not os.path.exists(target_dir):
-    os.mkdir(target_dir)
 
 inst_replace = {
     (  0,  0) : ( 16,  0), # detuned (?)
