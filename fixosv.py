@@ -1,6 +1,7 @@
 # MOTHER 3 OSV to MIDI
 
 import os, sys
+from collections.abc import Iterable
 
 from mido import MidiFile, MidiTrack, Message, MetaMessage, merge_tracks # planned for use with guitar strum emulation
 from mido.messages.checks import check_channel
@@ -52,7 +53,7 @@ for arg in sys.argv:
         MODE = arg[7:]
         match MODE:
             case "gm": GM_DRUMS = True; DEFER_DRUMS = True
-            case "gm2": pass # drums are toggled in a different way... 
+            case "gm2": pass # drums are toggled in a different way...
             case "gs": pass
             case "msgs": DEFER_DRUMS = True
             case _: pass
@@ -67,7 +68,7 @@ def TOGGLE_DRUMS(chan, on):
     if chan  > 9: xx -= 1
     yy = 0x1A - chan
     data = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
-            # 65,   16,  66,   18,   64,xx,   21, (1 if on else 0), yy]
+            # 65,   16,  66,   18,   64,xx,   21, (off: 0, on:  1), yy
 
     return SYSEX(data)
 
@@ -75,9 +76,10 @@ def DRUMS(msg, on):
     return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel)) \
         if DEFER_DRUMS else TOGGLE_DRUMS(msg.channel, on)
 
+PIANO = ( 16,  0) # (  0,  0)
 inst_replace = {
-    (  0,  0) : ( 16,  0), # detuned (?)
-    (  0, 11) : ( 16,  0),
+    (  0,  0) : ( PIANO ), # detuned (?)
+    (  0, 11) : ( PIANO ),
     (  0,  1) : (  3,122), # wind
     (  0, 61) : (  0, 60), # french horns
     (  0, 66) : (  0, 65), # replace sax
@@ -92,11 +94,11 @@ inst_replace = {
     (  0, 86) : (  1, 80), # square
     (  0, 87) : (  1, 80), # square
     (  0, 31) : (  0, 30), # DIST.guitar
-    (  0,126) : (  0, 18), # Rotary Organ, bank 24 if SC-88
     (  0, 44) : (  0, 47), # timpani
     (  0, 67) : (  0, 27), # Guitar chord
     (  0, 69) : (  0, 27), # Guitar chord
     (  0,120) : (  0, 30), # Dist.Guitar
+    (  0,126) : (  0, 18), # Rotary Organ, bank 24 if SC-88
     (  0,127) : (128,  0), # Percussion
 }
 def get_inst(inst):
@@ -448,6 +450,7 @@ def main():
                     nonlocal rest_time
                     rest_time += msg.time
                 def queue(msg, ignore_rest=False):
+                    # if isinstance(msg, Instance):
                     if not ignore_rest:
                         nonlocal rest_time; msg.time += rest_time; rest_time = 0
                     msg_queue.append(msg)
