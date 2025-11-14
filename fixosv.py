@@ -19,7 +19,7 @@ if not os.path.exists(target_dir):
 def SYSEX(data):
     if type(data) is str:
         data_list = []
-        data = data.replace(" ", "").replace("0x", "")
+        data = data.replace(" ", "").strip("0x")
         while len(data) > 0:
             try:
                 data_list.append(int(data[:2], 16))
@@ -52,11 +52,11 @@ for arg in sys.argv:
     elif arg[:7] == "--mode=":
         MODE = arg[7:]
         match MODE:
-            case "gm": GM_DRUMS = True; DEFER_DRUMS = True
-            case "gm2": pass # drums are toggled in a different way...
-            case "gs": pass
+            case "gm"  : GM_DRUMS = True; DEFER_DRUMS = True
+            case "gm2" : pass # drums are toggled in a different way...
+            case "gs"  : pass
             case "msgs": DEFER_DRUMS = True
-            case _: pass
+            case _     : MODE = "gs"
 
 with open(target_dir + "ARGS.TXT", 'w') as f:
     f.write(" ".join(sys.argv[1:]))
