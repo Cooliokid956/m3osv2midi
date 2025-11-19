@@ -27,6 +27,7 @@ def SYSEX(data):
             except ValueError: data = data[1:]
 
         data = data_list
+    # print(data)
     return Message("sysex", data = data)
 GM_SYSTEM_ON  = SYSEX("7E 7F 09 01")
 GM2_SYSTEM_ON = SYSEX("7E 7F 09 03")
@@ -51,26 +52,43 @@ for arg in sys.argv:
         break
     elif arg[:7] == "--mode=":
         MODE = arg[7:]
-        match MODE:
-            case "gm"  : GM_DRUMS = True; DEFER_DRUMS = True
-            case "gm2" : pass # drums are toggled in a different way...
-            case "gs"  : pass
-            case "msgs": DEFER_DRUMS = True
-            case _     : MODE = "gs"
+
+match MODE:
+    case "gm"  : GM_DRUMS = True; DEFER_DRUMS = True
+    case "gm2" : pass # drums are toggled in a different way...
+    case "gs"  : GS = True
+    case "msgs": GS = True; DEFER_DRUMS = True
+    case _     : GS = True; MODE = "gs"
 
 with open(target_dir + "ARGS.TXT", 'w') as f:
     f.write(" ".join(sys.argv[1:]))
 
 def TOGGLE_DRUMS(chan, on):
-    check_channel(chan)
-    xx = 0x11 + chan
-    if chan == 9: xx = 0x10
-    if chan  > 9: xx -= 1
-    yy = 0x1A - chan
-    data = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
-            # 65,   16,  66,   18,   64,xx,   21, (off: 0, on:  1), yy
+    match MODE:
+        case "gs" | "msgs":
+            check_channel(chan)
+            xx = 0x11 + chan
+            if chan == 9: xx = 0x10
+            if chan  > 9: xx -= 1
+            yy = 0x1A - chan
+            data = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
+                    # 65,   16,  66,   18,   64,xx,   21, (off: 0, on:  1), yy
 
-    return SYSEX(data)
+            return SYSEX(data)
+        case "gm2":
+            # add gm2 rhythm logic
+            return SYSEX([0])
+    return SYSEX([0])
+
+HEADER_GS = [GS_RESET, TOGGLE_DRUMS(9, False)]
+headers = {
+    "gm"    : [GM_SYSTEM_ON],
+    "gm2"   : [GM2_SYSTEM_ON, TOGGLE_DRUMS(9, False)],
+    "gs"    : HEADER_GS,
+    "msgs"  : HEADER_GS,
+    "spessa": HEADER_GS
+}
+HEADER = headers[MODE] or HEADER_GS
 
 def DRUMS(msg, on):
     return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel)) \
@@ -421,7 +439,7 @@ def main():
             mid = MidiFile(source_dir + filename)
             og_track = merge_tracks(mid.tracks) if len(mid.tracks) > 1 else mid.tracks[0]
 
-            header = [GS_RESET, TOGGLE_DRUMS(9, False)]
+            header = HEADER.copy()
             track = MidiTrack()
             altered = False
             bank_switch = False
