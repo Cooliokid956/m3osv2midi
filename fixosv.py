@@ -33,12 +33,13 @@ GM_SYSTEM_ON  = SYSEX("7E 7F 09 01")
 GM2_SYSTEM_ON = SYSEX("7E 7F 09 03")
 GS_RESET      = SYSEX("41 1042 12 40007F 0041")
 
+def CC(chan, cont, val, **args):
+    return Message("control_change", channel=chan, control=cont, value=val, **args)
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
 
 # settings
-GM_DRUMS     = "--gm-drums"     in sys.argv
-DEFER_DRUMS  = "--defer-drums"  in sys.argv or GM_DRUMS
+DEFER_DRUMS  = "--defer-drums"  in sys.argv
 INSTANT_CUT  = "--instant-cut"  in sys.argv
 SKIP_REPLACE = "--skip-replace" in sys.argv
 SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
@@ -53,37 +54,37 @@ for arg in sys.argv:
     elif arg[:7] == "--mode=":
         MODE = arg[7:]
 
+GM,GM2,GS=None,None,None
 match MODE:
-    case "gm"  : GM_DRUMS = True; DEFER_DRUMS = True
-    case "gm2" : pass # drums are toggled in a different way...
+    case "gm"  : GM = True; DEFER_DRUMS = True
+    case "gm2" : GM2 = True; # drums are toggled in a different way...
     case "gs"  : GS = True
     case "msgs": GS = True; DEFER_DRUMS = True
     case _     : GS = True; MODE = "gs"
+CC_BANK = 32 if GM2 else 0
 
 with open(target_dir + "ARGS.TXT", 'w') as f:
     f.write(" ".join(sys.argv[1:]))
 
 def TOGGLE_DRUMS(chan, on):
-    match MODE:
-        case "gs" | "msgs":
-            check_channel(chan)
-            xx = 0x11 + chan
-            if chan == 9: xx = 0x10
-            if chan  > 9: xx -= 1
-            yy = 0x1A - chan
-            data = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
-                    # 65,   16,  66,   18,   64,xx,   21, (off: 0, on:  1), yy
+    if GS:
+        check_channel(chan)
+        xx = 0x11 + chan
+        if chan == 9: xx = 0x10
+        if chan  > 9: xx -= 1
+        yy = 0x1A - chan
+        data = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
+                # 65,   16,  66,   18,   64,xx,   21, (off: 0, on:  1), yy
 
-            return SYSEX(data)
-        case "gm2":
-            # add gm2 rhythm logic
-            return SYSEX([0])
-    return SYSEX([0])
+        return [SYSEX(data)]
+    elif GM2:
+        return [CC(chan, 0, (0x78 if on else 0x79)), CC(chan, 32, 0)]
+    return [SYSEX([0])]
 
-HEADER_GS = [GS_RESET, TOGGLE_DRUMS(9, False)]
+HEADER_GS = [GS_RESET] + TOGGLE_DRUMS(9, False)
 headers = {
     "gm"    : [GM_SYSTEM_ON],
-    "gm2"   : [GM2_SYSTEM_ON, TOGGLE_DRUMS(9, False)],
+    "gm2"   : [GM2_SYSTEM_ON] + TOGGLE_DRUMS(9, False),
     "gs"    : HEADER_GS,
     "msgs"  : HEADER_GS,
     "spessa": HEADER_GS
@@ -468,7 +469,10 @@ def main():
                     nonlocal rest_time
                     rest_time += msg.time
                 def queue(msg, ignore_rest=False):
-                    # if isinstance(msg, Instance):
+                    if isinstance(msg, Iterable):
+                    # if type(msg) is list:
+                        for m in msg: queue(m)
+                        return msg_queue[-1]
                     if not ignore_rest:
                         nonlocal rest_time; msg.time += rest_time; rest_time = 0
                     msg_queue.append(msg)
@@ -487,7 +491,7 @@ def main():
                 if not altered and msg.type in ALTERED_EVENTS:
                     altered = True; print(filename[11:-4] or filename[:-4])
 
-                if GM_DRUMS and msg.type in CHANNEL_EVENTS and msg.channel > 8: msg.channel += 1
+                if GM and msg.type in CHANNEL_EVENTS and msg.channel > 8: msg.channel += 1
 
                 # looping
                 if msg.type == 'marker':
@@ -542,7 +546,7 @@ def main():
                             queue(DRUMS(msg, False), True)
 
                         if chan_prog[msg.channel][0] != new_prog[0]:
-                            queue(Message("control_change", channel = msg.channel, control = 0, value = new_prog[0], time = pop_time(msg)))
+                            queue(CC(msg.channel, CC_BANK, new_prog[0], time = pop_time(msg)))
                         chan_prog[msg.channel] = new_prog
                         msg.program = new_prog[1]
                         if replaced:
@@ -560,7 +564,7 @@ def main():
 
                 if msg.type in ('note_on', 'note_off'):
                     if is_drums:
-                        channel = 9 if GM_DRUMS else msg.channel
+                        channel = 9 if GM else msg.channel
                         if msg.note in (35, 56): # 56 is proper, 35 is different
                             queue(Message(type = "program_change", channel = 15, program = 119, time = pop_time(msg)))
                             queue_and_flush(msg.copy(channel=15, note=60))
@@ -629,14 +633,14 @@ def main():
                         if (128, 0) in prog_list:
                             if len(prog_list) == 1:
                                 static_perc += 1
-                                header.append(TOGGLE_DRUMS(i, True))
+                                header += TOGGLE_DRUMS(i, True)
                                 print("Channel %i: static percussion allocated" % i)
                             else:
                                 dyn_perc.append(i)
                 
                 perc_count -= static_perc
                 for i in range(perc_count):
-                    header.append(TOGGLE_DRUMS(peak_chan+i, True))
+                    header += TOGGLE_DRUMS(peak_chan+i, True)
                     print("Channel %i: dynamic percussion allocated" % (peak_chan+i))
 
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
@@ -644,7 +648,7 @@ def main():
 
                 if static_perc + len(dyn_perc) > 0:
                     dyn_perc_chan = {}
-                    if GM_DRUMS and peak_chan == 9: peak_chan = 10
+                    if GM and peak_chan == 9: peak_chan = 10
 
                     i = 0
                     while i < len(track):
@@ -653,10 +657,10 @@ def main():
                         if msg.type == "marker" and msg.text[:5] == "drums":
                             on = msg.text[5] == '|'
                             channel = int(msg.text[6:])
-                            if channel in dyn_perc or GM_DRUMS:
+                            if channel in dyn_perc or GM:
                                 if on:
                                     for j in range(peak_chan, 16):
-                                        if GM_DRUMS: dyn_perc_chan[channel] = 9; break
+                                        if GM: dyn_perc_chan[channel] = 9; break
                                         if j not in dyn_perc_chan.values():
                                             dyn_perc_chan[channel] = j
                                             print("drums on channel %i allocated to %i" % (channel, j))
@@ -668,15 +672,16 @@ def main():
                             del track[i]; msg = track[i]
 
                         if msg.type in CHANNEL_EVENTS:
-                            # if GM_DRUMS and msg.channel == 9: msg.channel = peak_chan
                             msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
                         i += 1
 
             header.extend(track)
-            mid.tracks = [header if not GM_DRUMS else track]
+            mid.tracks = [header]
 
-            # for msg in header: #.MSGDUMP
-            #     print(msg, end=",  ") #.MSGDUMP
+            # if "Welcome" in filename:
+            #     for msg in header: #.MSGDUMP
+            #         print(msg, end=",  \n") #.MSGDUMP
+            #     raise NameError
 
             bomb -= 1 #.BOMB
             if not bomb: raise NameError #.BOMB
