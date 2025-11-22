@@ -54,13 +54,14 @@ for arg in sys.argv:
     elif arg[:7] == "--mode=":
         MODE = arg[7:]
 
-GM,GM2,GS=None,None,None
+GM,GM2,GS,SC88=0,0,0,0
 match MODE:
-    case "gm"  : GM = True; DEFER_DRUMS = True
-    case "gm2" : GM2 = True; # drums are toggled in a different way...
-    case "gs"  : GS = True
-    case "msgs": GS = True; DEFER_DRUMS = True
-    case _     : GS = True; MODE = "gs"
+    case "gm"  : GM = 1; DEFER_DRUMS = 1
+    case "gm2" : GM2 = 1; # drums are toggled in a different way...
+    case "gs"  : GS = 1
+    case "sc88": GS = 1; SC88 = 1
+    case "msgs": GS = 1; DEFER_DRUMS = 1
+    case _     : GS = 1; MODE = "gs"
 CC_BANK = 32 if GM2 else 0
 
 with open(target_dir + "ARGS.TXT", 'w') as f:
@@ -86,6 +87,7 @@ headers = {
     "gm"    : [GM_SYSTEM_ON],
     "gm2"   : [GM2_SYSTEM_ON] + TOGGLE_DRUMS(9, False),
     "gs"    : HEADER_GS,
+    "sc88"  : HEADER_GS,
     "msgs"  : HEADER_GS,
     "spessa": HEADER_GS
 }
@@ -114,12 +116,20 @@ inst_replace = {
     (  0, 87) : (  1, 80), # square
     (  0, 31) : (  0, 30), # DIST.guitar
     (  0, 44) : (  0, 47), # timpani
-    (  0, 67) : (  0, 27), # Guitar chord
-    (  0, 69) : (  0, 27), # Guitar chord
+    (  0, 67) : (  8, 27), # Guitar chord
+    (  0, 69) : (  8, 27), # Guitar chord
     (  0,120) : (  0, 30), # Dist.Guitar
-    (  0,126) : (  0, 18), # Rotary Organ, bank 24 if SC-88
+    (  0,126) : (  0, 18), # Rotary Organ
     (  0,127) : (128,  0), # Percussion
 }
+if SC88:
+    inst_replace.update({
+        (  0,  3) : (  2, 88), # New Age
+        (  0,  6) : (  2, 88), # New Age
+        (  0, 62) : (  2, 63), # Warm Brass
+        (  0, 73) : (  1, 73), # Flute 2
+        (  0,126) : ( 24, 18), # Rotary Organ
+    })
 def get_inst(inst):
     replace = inst_replace.get(inst)
     if replace is None: return inst, False
@@ -154,10 +164,16 @@ drums_remap = {
     24: (56, 58), # SFX; Applause
     33: (48, 59), # Orchestra;
     35: ( 0, 43), # reverse cymbal
-
-    # SC-88
-    25: (56, 38), # pick scrape
 }
+if SC88:
+    drums_remap.update({
+        20: (59, 65), # One!
+        21: (59, 67), # Two!
+        22: (59, 69), # Three!
+        23: (59, 71), # Tah!
+        24: (56, 91), # Small Club
+        25: (56, 38), # pick scrape
+    })
 DEF_BANK = 0 # 16 for Power
 
 """
@@ -422,6 +438,9 @@ inst_name = {
 
     # SC-88
     (  2, 88): "New Age",
+    (  1, 73): "Flute 2",
+    (  2, 63): "Warm Brass",
+    (  8, 27): "Chorus Gt.",
     ( 24, 18): "RotaryOrg.F"
 }
 
