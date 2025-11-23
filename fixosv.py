@@ -13,6 +13,31 @@ print("MOTHER 3 OSV to MIDI\n")
 source_dir = "./OSV/"
 target_dir = "./OSVMIDI/"
 
+# settings
+SAFE_NAME    = "--safe-name"    in sys.argv
+DEFER_DRUMS  = "--defer-drums"  in sys.argv
+INSTANT_CUT  = "--instant-cut"  in sys.argv
+SKIP_REPLACE = "--skip-replace" in sys.argv
+SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
+
+DEF_BANK = 0 # 16 for Power
+LOOPS = 0
+MODE = ""
+for arg in sys.argv:
+    if arg[:5] == "--in=":
+        source_dir = arg[5:]
+    if arg[:6] == "--out=":
+        target_dir = arg[6:]
+    elif arg[:8] == "--drums=":
+        DEF_BANK = int(arg[8])
+    elif arg[:6] == "--loop":
+        LOOPS = 1
+        if arg[6:8] == "s=": LOOPS = int(arg[8:])
+        break
+    elif arg[:7] == "--mode=":
+        MODE = arg[7:].lower()
+
+
 if not os.path.exists(target_dir):
     os.mkdir(target_dir)
 
@@ -33,35 +58,21 @@ GM_SYSTEM_ON  = SYSEX("7E 7F 09 01")
 GM2_SYSTEM_ON = SYSEX("7E 7F 09 03")
 GS_RESET      = SYSEX("41 1042 12 40007F 0041")
 
+def PC(chan, prog, **args):
+    return Message("program_change", channel=chan, program=prog, **args)
 def CC(chan, cont, val, **args):
     return Message("control_change", channel=chan, control=cont, value=val, **args)
+
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
-
-# settings
-DEFER_DRUMS  = "--defer-drums"  in sys.argv
-INSTANT_CUT  = "--instant-cut"  in sys.argv
-SKIP_REPLACE = "--skip-replace" in sys.argv
-SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
-
-LOOPS = 0
-MODE = ""
-for arg in sys.argv:
-    if arg[:6] == "--loop":
-        LOOPS = 1
-        if arg[6:8] == "s=": LOOPS = int(arg[8:])
-        break
-    elif arg[:7] == "--mode=":
-        MODE = arg[7:]
 
 GM,GM2,GS,SC88=0,0,0,0
 match MODE:
     case "gm"  : GM = 1; DEFER_DRUMS = 1
-    case "gm2" : GM2 = 1; # drums are toggled in a different way...
-    case "gs"  : GS = 1
+    case "gm2" : GM2 = 1
     case "sc88": GS = 1; SC88 = 1
     case "msgs": GS = 1; DEFER_DRUMS = 1
-    case _     : GS = 1; MODE = "gs"
+    case "gs"|_: GS = 1
 CC_BANK = 32 if GM2 else 0
 
 with open(target_dir + "ARGS.TXT", 'w') as f:
@@ -84,14 +95,11 @@ def TOGGLE_DRUMS(chan, on):
 
 HEADER_GS = [GS_RESET] + TOGGLE_DRUMS(9, False)
 headers = {
-    "gm"    : [GM_SYSTEM_ON],
-    "gm2"   : [GM2_SYSTEM_ON] + TOGGLE_DRUMS(9, False),
-    "gs"    : HEADER_GS,
-    "sc88"  : HEADER_GS,
-    "msgs"  : HEADER_GS,
-    "spessa": HEADER_GS
+    "gm"  : [GM_SYSTEM_ON],
+    "gm2" : [GM2_SYSTEM_ON] + TOGGLE_DRUMS(9, False),
+    "sc88": [GS_RESET, PC(9, DEF_BANK)] + TOGGLE_DRUMS(9, False)
 }
-HEADER = headers[MODE] or HEADER_GS
+HEADER = headers.get(MODE, HEADER_GS)
 
 def DRUMS(msg, on):
     return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel)) \
@@ -120,21 +128,17 @@ inst_replace = {
     (  0, 69) : (  8, 27), # Guitar chord
     (  0,120) : (  0, 30), # Dist.Guitar
     (  0,126) : (  0, 18), # Rotary Organ
-    (  0,127) : (128,  0), # Percussion
+    (  0, 75) : (  8, 18), # Rotary Organ
+    (  0,127) : (128,DEF_BANK), # Percussion
+    (  4, 31) : (  0, 63), # Synth Brass 2
+    (  4, 34) : (  0, 11), # Xylophone
 }
-if SC88:
-    inst_replace.update({
-        (  0,  3) : (  2, 88), # New Age
-        (  0,  6) : (  2, 88), # New Age
-        (  0, 62) : (  2, 63), # Warm Brass
-        (  0, 73) : (  1, 73), # Flute 2
-        (  0,126) : ( 24, 18), # Rotary Organ
-    })
 def get_inst(inst):
     replace = inst_replace.get(inst)
     if replace is None: return inst, False
     else: return replace, True
 
+# tweaks
 class Chord:
     def __init__(self, *offsets):
         self.offsets = []
@@ -158,6 +162,8 @@ inst_tweaks = {
     (  0, 61): [Velocity(0.85)], #, Chord(12)],
     (  0, 67): [Chord(0, 3,-5)], # Guitar chord
     (  0, 69): [Chord(0, 4, 7)], # Guitar chord
+    (  0, 75): [Chord(12)],
+    (  4, 34): [Chord(24)]
 }
 
 drums_remap = {
@@ -166,6 +172,14 @@ drums_remap = {
     35: ( 0, 43), # reverse cymbal
 }
 if SC88:
+    inst_replace.update({
+        (  0,  3) : (  2, 88), # New Age
+        (  0,  6) : (  2, 88), # New Age
+        (  0, 62) : (  2, 63), # Warm Brass
+        (  0, 73) : (  1, 73), # Flute 2
+        (  0,126) : ( 24, 18), # Rotary Organ
+        (  4, 34) : (  9, 11), # Xylophone
+    })
     drums_remap.update({
         20: (59, 65), # One!
         21: (59, 67), # Two!
@@ -174,7 +188,7 @@ if SC88:
         24: (56, 91), # Small Club
         25: (56, 38), # pick scrape
     })
-DEF_BANK = 0 # 16 for Power
+
 
 """
   TODO: convert chord instruments to proper instrument, keep track of channel and append chord notes
@@ -441,8 +455,11 @@ inst_name = {
     (  1, 73): "Flute 2",
     (  2, 63): "Warm Brass",
     (  8, 27): "Chorus Gt.",
+    (  9, 11): "Vibraphones",
     ( 24, 18): "RotaryOrg.F"
 }
+def get_inst_name(prog):
+    return inst_name.get(prog, f"Unknown ({prog[0]:03.0f}:{prog[1]:03.0f})")
 
 def main():
     converts = 0
@@ -457,7 +474,8 @@ def main():
         filename = os.fsdecode(file)
         if filename.endswith(".mid"):
             mid = MidiFile(source_dir + filename)
-            og_track = merge_tracks(mid.tracks) if len(mid.tracks) > 1 else mid.tracks[0]
+            og_track = merge_tracks(mid.tracks, True) if len(mid.tracks) > 1 else mid.tracks[0]
+            og_track.name = (filename[11:-4] or filename[:-4]).replace("┐", "?")
 
             header = HEADER.copy()
             track = MidiTrack()
@@ -466,6 +484,8 @@ def main():
 
             orig_prog = []
             chan_prog = []
+            drum_bank = DEF_BANK
+            rev_cym = False
             prog_record = []
             for i in range(16):
                 orig_prog.append((0, 0))
@@ -476,7 +496,6 @@ def main():
             tweaked = False
 
             pre_loop_track = None
-            pre_loop_perc_bank = None
 
             perc_count = 0
             peak_chan = 0
@@ -489,7 +508,6 @@ def main():
                     rest_time += msg.time
                 def queue(msg, ignore_rest=False):
                     if isinstance(msg, Iterable):
-                    # if type(msg) is list:
                         for m in msg: queue(m)
                         return msg_queue[-1]
                     if not ignore_rest:
@@ -521,13 +539,13 @@ def main():
                                 pre_loop_track = track
                                 track = MidiTrack()
                                 # pre_loop_perc_bank = perc_bank
-                                # queue_and_flush(Message("program_change", channel = 9, program = perc_bank)) # find a better way to do this
+                                # queue_and_flush(PC(9, perc_bank)) # find a better way to do this
                             case "loopEnd":
                                 pre_loop_track.extend(track * (LOOPS + 1))
                                 track = pre_loop_track
                     continue
 
-                if msg.type == 'sysex': suppress(msg); continue#print("sysex:", msg.data); continue
+                if msg.type == 'sysex': suppress(msg); continue
 
                 if msg.is_cc(0):
                     if not bank_switch and msg.value != 0: bank_switch = True; print("Contains special instruments")
@@ -543,7 +561,7 @@ def main():
                     if "Welcome!" in filename:
                         print("%i %s"
                              % (msg.channel,
-                                inst_name[(orig_prog[msg.channel][0], msg.program)]))
+                                get_inst_name(orig_prog[msg.channel])))
                     # END dumping
 
                     new_prog, replaced = get_inst(orig_prog[msg.channel])
@@ -560,7 +578,8 @@ def main():
 
                             chan_prog[msg.channel] = new_prog
                             queue(DRUMS(msg, True), True)
-                            queue_and_flush(msg.copy(program=DEF_BANK)); continue
+                            queue_and_flush(msg.copy(program=drum_bank if SC88 else DEF_BANK))
+                            continue
                         elif chan_prog[msg.channel][0] == 128:
                             queue(DRUMS(msg, False), True)
 
@@ -572,8 +591,8 @@ def main():
                             converts += 1
                             print("%s %s -> %s"
                                  % (str(msg.channel).rjust(2),
-                                    inst_name[orig_prog[msg.channel]].ljust(23),
-                                    inst_name[new_prog].ljust(23)))
+                                    get_inst_name(orig_prog[msg.channel]).ljust(23),
+                                    get_inst_name(new_prog).ljust(23)))
 
                         queue_and_flush(msg)
                     else: suppress(msg)
@@ -584,8 +603,8 @@ def main():
                 if msg.type in ('note_on', 'note_off'):
                     if is_drums:
                         channel = 9 if GM else msg.channel
-                        if msg.note in (35, 56): # 56 is proper, 35 is different
-                            queue(Message(type = "program_change", channel = 15, program = 119, time = pop_time(msg)))
+                        if msg.note in (56,-1): # 56 is proper, 35 is different
+                            if not rev_cym: queue(PC(15, 119, time = pop_time(msg))); rev_cym = True
                             queue_and_flush(msg.copy(channel=15, note=60))
                             continue
 
@@ -594,9 +613,10 @@ def main():
                         if remap is not None:
                             bank = remap[0]
                             msg.note = remap[1]
-                        if bank != chan_prog[channel][1]:
-                            queue(Message(type = "program_change", channel = msg.channel, program = bank, time = pop_time(msg)))
+                        if bank != drum_bank if SC88 else chan_prog[channel][1]:
+                            queue(PC(msg.channel, bank, time = pop_time(msg)))
                             chan_prog[channel] = (128, bank)
+                            drum_bank = bank
                         queue_and_flush(msg)
                         continue
 
@@ -608,7 +628,7 @@ def main():
 
                         for tweak in tweaks:
                             if not tweaked:
-                                tweaked = True; print(inst_name[orig_prog[msg.channel]], "tweaked")
+                                tweaked = True; print(get_inst_name(orig_prog[msg.channel]), "tweaked")
                             if type(tweak) is Chord:
 
                                 for offset in tweak.offsets:
@@ -709,7 +729,8 @@ def main():
             total_og_len += len(og_track)
             total_len += len(track)
                 
-
+            if SAFE_NAME:
+                filename = filename.replace("┐", "").strip("!")
             mid.save(target_dir + filename)
 
     print()
