@@ -1,6 +1,6 @@
 # MOTHER 3 to MIDI (WIP)
 
-Converts MOTHER 3 MIDI rips into files conforming to the Roland General Standard (GS).
+Converts MOTHER 3 MIDI rips to various MIDI standards.
 
 You need Python.
 
@@ -14,9 +14,11 @@ You need Python.
 This script was originally created to target Microsoft GS Wavetable Synth, due to the game soundbank's shared usage of the Roland SC-55 (technically 88Pro.)
 
 ## Available CLI options:
+- `--help`: Shows all available options
 - `--in=PATH`: Specify the output folder
 - `--out=PATH`: Specify the output folder
 - `--loop[s=#]`: Enables looping (Default: 1 loop)
+- `--drums=#`: Change the default drum bank
 - `--mode=MODE`: Select the appropriate mode for best playback
   - Available: `gm|gm2|gs|msgs|sc88`
 - `--safe-name`: Strips unsafe characters from output file names

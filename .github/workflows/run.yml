@@ -28,7 +28,7 @@ jobs:
         - name: SPESSA
           args: 
         - name: MSGS
-          args: --defer-drums
+          args: 
 
     runs-on: ubuntu-latest
 

@@ -1,8 +1,18 @@
 # MOTHER 3 OSV to MIDI
 
 import os, sys
-from collections.abc import Iterable
+if "--help" in sys.argv:
+    nameLen = len(sys.argv[0])
+    print(
+f"""
+Usage: {sys.argv[0]} [--in=PATH] [--out=PATH] [--loop[s=#]] [--drums=#]
+       {' '*nameLen} [--mode=gm|gm2|gs|msgs|sc88] [--safe-name]
+       {' '*nameLen} [--defer-drums] [--instant-cut]
+       {' '*nameLen} [--skip-replace] [--skip-tweaks]
+""" )
+    sys.exit(0)
 
+from collections.abc import Iterable
 from mido import MidiFile, MidiTrack, Message, MetaMessage, merge_tracks # planned for use with guitar strum emulation
 from mido.messages.checks import check_channel
 
@@ -10,8 +20,8 @@ def clamp(x, a, b): return max(a,min(x, b))
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
 
-source_dir = "./OSV/"
-target_dir = "./OSVMIDI/"
+source_dir = "OSV/"
+target_dir = "OSVMIDI/"
 
 # settings
 SAFE_NAME    = "--safe-name"    in sys.argv
@@ -25,18 +35,16 @@ LOOPS = 0
 MODE = ""
 for arg in sys.argv:
     if arg[:5] == "--in=":
-        source_dir = arg[5:]
+        source_dir = os.path.normpath(arg[5:]) + "/"
     if arg[:6] == "--out=":
-        target_dir = arg[6:]
-    elif arg[:8] == "--drums=":
-        DEF_BANK = int(arg[8])
+        target_dir = os.path.normpath(arg[6:]) + "/"
     elif arg[:6] == "--loop":
         LOOPS = 1
         if arg[6:8] == "s=": LOOPS = int(arg[8:])
-        break
+    elif arg[:8] == "--drums=":
+        DEF_BANK = int(arg[8])
     elif arg[:7] == "--mode=":
         MODE = arg[7:].lower()
-
 
 if not os.path.exists(target_dir):
     os.mkdir(target_dir)
@@ -109,6 +117,7 @@ PIANO = ( 16,  0) # (  0,  0)
 inst_replace = {
     (  0,  0) : ( PIANO ), # detuned (?)
     (  0, 11) : ( PIANO ),
+    (  0, 22) : ( PIANO ),
     (  0,  1) : (  3,122), # wind
     (  0, 61) : (  0, 60), # french horns
     (  0, 66) : (  0, 65), # replace sax
@@ -129,7 +138,7 @@ inst_replace = {
     (  0,120) : (  0, 30), # Dist.Guitar
     (  0,126) : (  0, 18), # Rotary Organ
     (  0, 75) : (  8, 18), # Rotary Organ
-    (  0,127) : (128,DEF_BANK), # Percussion
+    (  0,127) : (128,  0), # Percussion
     (  4, 31) : (  0, 63), # Synth Brass 2
     (  4, 34) : (  0, 11), # Xylophone
 }
@@ -150,11 +159,12 @@ class Velocity:
     def __init__(self, mult):
         self.mult = mult
 inst_tweaks = {
-    (  0,  3): [Chord(12, 15, 19)],
-    (  0,  6): [Chord(15, 19, 22)],
+    (  0,  3): [Velocity(0.5), Chord(12, 15, 19)],
+    (  0,  6): [Velocity(0.5), Chord(15, 19, 22)],
     (  0,  7): [Chord(17)],
     (  0,  9): [Chord(12)],
-    (  0, 11): [Chord(0-12, 4-12, 7-12)], # Major
+    (  0, 11): [Velocity(0.7), Chord(0-12, 4-12, 7-12)], # Major
+    (  0, 22): [Velocity(0.7), Chord(-3, 0, 4-12)], # Minor
     (  0, 31): [Chord(-15, -8)],
    #(  0, 34): [Chord(24)],
     (  0, 41): [Chord(12)],
