@@ -110,7 +110,7 @@ headers = {
 HEADER = headers.get(MODE, HEADER_GS)
 
 def DRUMS(msg, on):
-    return MetaMessage("marker", text="drums"+("|" if on else "O")+str(msg.channel)) \
+    return MetaMessage("marker", text="drums"+("O" if on else "X")+str(msg.channel)) \
         if DEFER_DRUMS else TOGGLE_DRUMS(msg.channel, on)
 
 PIANO = ( 16,  0) # (  0,  0)
@@ -176,11 +176,75 @@ inst_tweaks = {
     (  4, 34): [Chord(24)]
 }
 
+# auxiliary
+class Auxiliary:
+    track = MidiTrack()
+    channel = 16
+    def __init__(self): pass
+
+    def is_setup(self, part):
+        return getattr(self, part.name, None)
+
+    def setup(self, part):
+        if self.is_setup(part):
+            return []
+        else:
+            self.channel -= 1
+            part.setup(self.channel)
+            
+
+class RevCymbal(Auxiliary):
+    name = "revCymbal"
+    def __init__(self): pass
+    def setup(self):
+        if self.init: return
+        self.init = True
+
+class Strum:
+    def __init__(self, *notes):
+        self.notes = notes
+
+STRUM_ABMAJ_DN = Strum(44, 48, 51, 56, 63)
+STRUM_ABMAJ_UP = Strum(48, 51, 56, 63, 68)
+STRUM_FMAJ_DN  = Strum(41, 45, 48, 53, 60)
+STRUM_FMAJ_UP  = Strum(45, 48, 53, 60, 65)
+STRUM_CMIN_DN  = Strum(36, 39, 43, 48, 55)
+STRUM_CMIN_UP  = Strum(39, 43, 48, 55, 60)
+STRUM_BB7TH_DN = Strum(46, 50, 53, 56, 65)
+STRUM_BB7TH_UP = Strum(50, 53, 56, 65, 70)
+STRUM_GBMIN_DN = Strum(42, 45, 49, 54, 61)
+STRUM_GBMIN_UP = Strum(45, 49, 54, 61, 66)
+STRUM_GAUG     = Strum(43, 47, 51, 55, 63)
+STRUM_DBDIM    = Strum(49, 52, 55, 61, 67)
+
+class Guitar(Auxiliary):
+    name = "guitar"
+    def __init__(self, strum):
+        self.notes = strum.notes
+        pass
+    def setup(self, chan):
+        return [PC(chan, 25)]
+    def strum(): pass
+
 drums_remap = {
     24: (56, 58), # SFX; Applause
     33: (48, 59), # Orchestra;
     35: ( 0, 43), # reverse cymbal
+    56: RevCymbal(),
+    60: Guitar(STRUM_ABMAJ_DN),
+    61: Guitar(STRUM_ABMAJ_UP),
+    71: Guitar(STRUM_FMAJ_DN),
+    72: Guitar(STRUM_FMAJ_UP),
+    76: Guitar(STRUM_CMIN_DN),
+    77: Guitar(STRUM_CMIN_UP),
+    78: Guitar(STRUM_BB7TH_DN),
+    79: Guitar(STRUM_BB7TH_UP),
+    124: Guitar(STRUM_GBMIN_DN),
+    125: Guitar(STRUM_GBMIN_UP),
+    126: Guitar(STRUM_GAUG),
+    127: Guitar(STRUM_DBDIM)
 }
+
 if SC88:
     inst_replace.update({
         (  0,  3) : (  2, 88), # New Age
@@ -191,10 +255,10 @@ if SC88:
         (  4, 34) : (  9, 11), # Xylophone
     })
     drums_remap.update({
-        20: (59, 65), # One!
-        21: (59, 67), # Two!
-        22: (59, 69), # Three!
-        23: (59, 71), # Tah!
+        20: ( 0, 17), # One!
+        21: ( 0, 18), # Two!
+        22: ( 0, 19), # Three!
+        23: (25,126), # Tah!
         24: (56, 91), # Small Club
         25: (56, 38), # pick scrape
     })
@@ -496,6 +560,7 @@ def main():
             chan_prog = []
             drum_bank = DEF_BANK
             rev_cym = False
+            aux = Auxiliary()
             prog_record = []
             for i in range(16):
                 orig_prog.append((0, 0))
@@ -613,7 +678,8 @@ def main():
                 if msg.type in ('note_on', 'note_off'):
                     if is_drums:
                         channel = 9 if GM else msg.channel
-                        if msg.note in (56,-1): # 56 is proper, 35 is different
+                        if msg.note in (56,35): # 56 is proper, 35 is different
+                            # if not aux
                             if not rev_cym: queue(PC(15, 119, time = pop_time(msg))); rev_cym = True
                             queue_and_flush(msg.copy(channel=15, note=60))
                             continue
@@ -621,8 +687,13 @@ def main():
                         remap = drums_remap.get(msg.note)
                         bank = DEF_BANK
                         if remap is not None:
-                            bank = remap[0]
-                            msg.note = remap[1]
+                            if isinstance(remap, Auxiliary):
+                                if not aux.is_setup(remap):
+                                    print("aux!")
+                                aux.setup(remap)
+                            else:
+                                bank = remap[0]
+                                msg.note = remap[1]
                         if bank != drum_bank if SC88 else chan_prog[channel][1]:
                             queue(PC(msg.channel, bank, time = pop_time(msg)))
                             chan_prog[channel] = (128, bank)
@@ -704,7 +775,7 @@ def main():
                         msg = track[i]
 
                         if msg.type == "marker" and msg.text[:5] == "drums":
-                            on = msg.text[5] == '|'
+                            on = msg.text[5] == 'O'
                             channel = int(msg.text[6:])
                             if channel in dyn_perc or GM:
                                 if on:
