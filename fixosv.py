@@ -191,6 +191,7 @@ class Auxiliary:
         else:
             self.channel -= 1
             part.setup(self.channel)
+            setattr(self, part.name, part)
             
 
 class RevCymbal(Auxiliary):
