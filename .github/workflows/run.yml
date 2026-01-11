@@ -25,10 +25,10 @@ jobs:
         - name: 
           args: --loop
         conf:
-        - name: SPESSA
+        - name: MIDI
           args: 
         - name: MSGS
-          args: 
+          args: --mode=msgs
 
     runs-on: ubuntu-latest
 
