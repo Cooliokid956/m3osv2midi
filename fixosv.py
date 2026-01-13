@@ -7,7 +7,7 @@ if "--help" in sys.argv:
 f"""
 Usage: {sys.argv[0]} [--in=PATH] [--out=PATH] [--loop[s=#]] [--drums=#]
        {' '*nameLen} [--mode=gm|gm2|gs|msgs|sc88] [--safe-name]
-       {' '*nameLen} [--defer-drums] [--instant-cut]
+       {' '*nameLen} [--defer-drums] [--instant-cut] [--extra-patch]
        {' '*nameLen} [--skip-replace] [--skip-tweaks]
 """ )
     sys.exit(0)
@@ -27,6 +27,7 @@ target_dir = "OSVMIDI/"
 SAFE_NAME    = "--safe-name"    in sys.argv
 DEFER_DRUMS  = "--defer-drums"  in sys.argv
 INSTANT_CUT  = "--instant-cut"  in sys.argv
+EXTRA_PATCH  = "--extra-patch"  in sys.argv
 SKIP_REPLACE = "--skip-replace" in sys.argv
 SKIP_TWEAKS  = "--skip-tweaks"  in sys.argv
 
@@ -246,7 +247,7 @@ drums_remap = {
     127: Guitar(STRUM_DBDIM)
 }
 
-if SC88:
+if SC88 or EXTRA_PATCH:
     inst_replace.update({
         (  0,  3) : (  2, 88), # New Age
         (  0,  6) : (  2, 88), # New Age
