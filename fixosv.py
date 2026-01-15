@@ -149,6 +149,24 @@ def get_inst(inst):
     else: return replace, True
 
 # tweaks
+class Transpose:
+    def __init__(self, offset):
+        self.offset = offset
+    def process(self, queue):
+        for msg in queue:
+            if msg.type in ("note_on", "note_off"):
+                msg.note += self.offset
+        return queue
+
+class Velocity:
+    def __init__(self, mult):
+        self.mult = mult
+    def process(self, queue):
+        for msg in queue:
+            if msg.type in ("note_on", "note_off"):
+                msg.velocity = int(msg.velocity * self.mult)
+        return queue
+
 class Chord:
     def __init__(self, *offsets):
         self.offsets = []
@@ -156,25 +174,46 @@ class Chord:
             if type(offset) is not tuple:
                 offset = (offset, 1)
             self.offsets.append(offset)
-class Velocity:
-    def __init__(self, mult):
-        self.mult = mult
+    def process(self, queue):
+        q = []
+        for msg in queue:
+            if msg.type in ("note_on", "note_off"):
+                time = msg.time
+                for offset in self.offsets:
+                    note = clamp(msg.note + offset[0], 0, 127)
+                    velocity = int(msg.velocity * offset[1])
+
+                    q.append(msg.copy(note = note, velocity = velocity, time = time))
+                    time = 0
+            else: q.append(msg)
+        return q
+
+class InstantCut:
+    def process(queue):
+        q = []
+        for msg in queue:
+            if msg.type == "note_off":
+                q.append(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
+                q.append(msg.copy(time = 0))
+            else: q.append(msg)
+        return queue
+
 inst_tweaks = {
     (  0,  3): [Velocity(0.5), Chord(12, 15, 19)],
     (  0,  6): [Velocity(0.5), Chord(15, 19, 22)],
-    (  0,  7): [Chord(17)],
-    (  0,  9): [Chord(12)],
+    (  0,  7): [Transpose(17)],
+    (  0,  9): [Transpose(12)],
     (  0, 11): [Velocity(0.7), Chord(0-12, 4-12, 7-12)], # Major
     (  0, 22): [Velocity(0.7), Chord(-3, 0, 4-12)], # Minor
     (  0, 31): [Chord(-15, -8)],
-   #(  0, 34): [Chord(24)],
-    (  0, 41): [Chord(12)],
+   #(  0, 34): [Transpose(24)],
+    (  0, 41): [Transpose(12)],
     (  0, 60): [Velocity(0.50)], #, Chord(12)],
     (  0, 61): [Velocity(0.85)], #, Chord(12)],
     (  0, 67): [Chord(0, 3,-5)], # Guitar chord
     (  0, 69): [Chord(0, 4, 7)], # Guitar chord
-    (  0, 75): [Chord(12)],
-    (  4, 34): [Chord(24)]
+    (  0, 75): [Transpose(12)],
+    (  4, 34): [Transpose(24)]
 }
 
 # auxiliary
@@ -704,39 +743,17 @@ def main():
                         continue
 
                     tweaks = inst_tweaks.get(orig_prog[msg.channel])
-                    cut = False
-                    def_queue = True
-                    if tweaks is not None and not SKIP_TWEAKS:
+                    queue(msg)
+                    if tweaks and not SKIP_TWEAKS:
                         ntweaks += 1
+                        if not tweaked:
+                            tweaked = True; print(get_inst_name(orig_prog[msg.channel]), "tweaked")
 
                         for tweak in tweaks:
-                            if not tweaked:
-                                tweaked = True; print(get_inst_name(orig_prog[msg.channel]), "tweaked")
-                            if type(tweak) is Chord:
+                            msg_queue = tweak.process(msg_queue)
 
-                                for offset in tweak.offsets:
-                                    note = clamp(msg.note + offset[0], 0, 127)
-                                    velocity = int(msg.velocity * offset[1])
+                    if INSTANT_CUT: InstantCut.process(msg_queue)
 
-                                    if msg.type == "note_off" and INSTANT_CUT:
-                                        mtype = "note_on"
-                                        velocity = 1
-                                        cut = True
-                                    else: mtype = msg.type
-
-                                    queue(Message(type = mtype, channel = msg.channel, note = note, velocity = velocity, time = msg.time if tweak.offsets.index(offset) == 0 else 0))
-                                    if msg.type == "note_off" and INSTANT_CUT: queue(Message(type = "note_off", channel = msg.channel, note = note, velocity = 0,time = 0))
-                                def_queue = False
-
-                            elif type(tweak) is Velocity:
-                                msg.velocity = int(msg.velocity * tweak.mult)
-
-                    if not cut and msg.type == "note_off" and INSTANT_CUT:
-                        queue(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
-                        queue_and_flush(Message(type = "note_off", channel = msg.channel, note = msg.note, velocity = 0,time = 0))
-                        continue
-
-                    if def_queue: queue(msg)
                     flush()
                     continue
 
