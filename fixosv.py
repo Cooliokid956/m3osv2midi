@@ -17,6 +17,8 @@ from mido import MidiFile, MidiTrack, Message, MetaMessage, merge_tracks # plann
 from mido.messages.checks import check_channel
 
 def clamp(x, a, b): return max(a,min(x, b))
+def array(init, len): return [init for _ in range(len)]
+
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
 
@@ -217,29 +219,37 @@ inst_tweaks = {
 }
 
 # auxiliary
+class AuxInfo:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
 class Auxiliary:
     track = MidiTrack()
     channel = 16
     def __init__(self): pass
 
-    def is_setup(self, part):
+    def part(self, part):
         return getattr(self, part.name, None)
 
-    def setup(self, part):
-        if self.is_setup(part):
-            return []
-        else:
-            self.channel -= 1
-            part.setup(self.channel)
-            setattr(self, part.name, part)
+    def fire(self, part, msg):
+        m = []
+        if not self.part(part):
+            m.extend(part.init(self, msg))
+        m.extend(part.fire(self, msg))
+        return m
             
 
 class RevCymbal(Auxiliary):
     name = "revCymbal"
     def __init__(self): pass
-    def setup(self):
-        if self.init: return
-        self.init = True
+    def init(self, aux, msg):
+        aux.channel -= 1
+        aux.revCymbal = AuxInfo(chan=aux.channel)
+        return [PC(aux.channel, 119)]
+    def fire(self, aux, msg):
+        return [msg.copy(channel=aux.revCymbal.chan, note=60)]
+
 
 class Strum:
     def __init__(self, *notes):
@@ -262,10 +272,16 @@ class Guitar(Auxiliary):
     name = "guitar"
     def __init__(self, strum):
         self.notes = strum.notes
-        pass
-    def setup(self, chan):
-        return [PC(chan, 25)]
-    def strum(): pass
+    def init(self, aux, msg):
+        # TO-DO: actual logic here
+        return [DRUMS(msg, False), PC(msg.channel, 25)]
+    def fire(self, aux, msg):
+        q = []
+        time = msg.time
+        for note in self.notes:
+            q.append(msg.copy(note = note, time = time))
+            time = 0
+        return q
 
 drums_remap = {
     24: (56, 58), # SFX; Applause
@@ -310,14 +326,14 @@ if SC88 or EXTRA_PATCH:
         bank switching! for special instruments
         swap 10th channel to next free (16th), move gunshot notes to 10th channel
         or enable drums mode on the fly?
- 
+
         it seems that's causing some panic (sudden stops, certain instruments are set to piano??),
         so maybe let's try rerouting all note events on program 127 to channel 10
- 
+
         the results are amazing
         let's do something about those guitar chords
         one down, a few to go: 11, 22, 67, 69, 109??
- 
+
         "Welcome!" needs a lot of instruments fixed
 
         haven't been writing this down but I've been reworking the event skip system and
@@ -597,16 +613,12 @@ def main():
             altered = False
             bank_switch = False
 
-            orig_prog = []
-            chan_prog = []
+            orig_prog = array((0, 0), 16)
+            chan_prog = array((0, 0), 16)
             drum_bank = DEF_BANK
             rev_cym = False
             aux = Auxiliary()
-            prog_record = []
-            for i in range(16):
-                orig_prog.append((0, 0))
-                chan_prog.append((0, 0))
-                prog_record.append([])
+            prog_record = array([], 16)
             rest_time = 0
 
             tweaked = False
@@ -729,9 +741,8 @@ def main():
                         bank = DEF_BANK
                         if remap is not None:
                             if isinstance(remap, Auxiliary):
-                                if not aux.is_setup(remap):
-                                    print("aux!")
-                                aux.setup(remap)
+                                queue_and_flush(aux.fire(remap, msg))
+                                continue
                             else:
                                 bank = remap[0]
                                 msg.note = remap[1]
