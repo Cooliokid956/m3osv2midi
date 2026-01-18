@@ -16,8 +16,13 @@ from collections.abc import Iterable
 from mido import MidiFile, MidiTrack, Message, MetaMessage, merge_tracks # planned for use with guitar strum emulation
 from mido.messages.checks import check_channel
 
+# miscellaneous helpers
 def clamp(x, a, b): return max(a,min(x, b))
 def array(init, len): return [init for _ in range(len)]
+class T:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
 
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
@@ -219,11 +224,6 @@ inst_tweaks = {
 }
 
 # auxiliary
-class AuxInfo:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
 class Auxiliary:
     track = MidiTrack()
     channel = 16
@@ -233,20 +233,17 @@ class Auxiliary:
         return getattr(self, part.name, None)
 
     def fire(self, part, msg):
-        m = []
-        if not self.part(part):
-            m.extend(part.init(self, msg))
-        m.extend(part.fire(self, msg))
-        return m
+        return (part.init(self, msg) or []) + part.fire(self, msg)
             
 
 class RevCymbal(Auxiliary):
     name = "revCymbal"
     def __init__(self): pass
     def init(self, aux, msg):
-        aux.channel -= 1
-        aux.revCymbal = AuxInfo(chan=aux.channel)
-        return [PC(aux.channel, 119)]
+        if not aux.part(self):
+            aux.channel -= 1
+            aux.revCymbal = T(chan=aux.channel)
+            return [PC(aux.channel, 119)]
     def fire(self, aux, msg):
         return [msg.copy(channel=aux.revCymbal.chan, note=60)]
 
@@ -273,14 +270,28 @@ class Guitar(Auxiliary):
     def __init__(self, strum):
         self.notes = strum.notes
     def init(self, aux, msg):
-        # TO-DO: actual logic here
-        return [DRUMS(msg, False), PC(msg.channel, 25)]
+        if not aux.part(self):
+            aux.guitar = array(T(
+                on = None
+            ), 16)
+        
+        if not aux.guitar[msg.channel].on:
+            aux.guitar[msg.channel].on = array(0, 128)
+            return [DRUMS(msg, False), PC(msg.channel, 25)]
+        
     def fire(self, aux, msg):
+        chan = aux.guitar[msg.channel].on
         q = []
         time = msg.time
+        on = msg.type == "note_on"
         for note in self.notes:
-            q.append(msg.copy(note = note, time = time))
-            time = 0
+            if on and chan[note]:
+                q.append(Message("note_off", channel=msg.channel, note=note, time=time))
+                time = 0
+            if on or chan[note] == 1:
+                q.append(msg.copy(note = note, time = time))
+                time = 0
+            aux.guitar[msg.channel].on[note] += 1 if on else -1
         return q
 
 drums_remap = {
@@ -741,7 +752,9 @@ def main():
                         bank = DEF_BANK
                         if remap is not None:
                             if isinstance(remap, Auxiliary):
-                                queue_and_flush(aux.fire(remap, msg))
+                                f = aux.fire(remap, msg)
+                                if f: queue_and_flush(f)
+                                else: suppress(msg)
                                 continue
                             else:
                                 bank = remap[0]
