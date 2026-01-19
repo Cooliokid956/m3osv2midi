@@ -756,6 +756,7 @@ def main():
 
                 if msg.type in ('note_on', 'note_off'):
                     if is_drums:
+                        channel = 9 if GM else msg.channel
                         remap = drums_remap.get(msg.note)
                         bank = DEF_BANK
                         if remap is not None:
