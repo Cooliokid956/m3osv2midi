@@ -19,10 +19,19 @@ from mido.messages.checks import check_channel
 # miscellaneous helpers
 def clamp(x, a, b): return max(a,min(x, b))
 def array(init, len): return [init for _ in range(len)]
+
 class T:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+class Explosion(Exception): ...
+class Bomb:
+    def __init__(self, ticks):
+        self.ticks = ticks
+    def tick(self):
+        self.ticks -= 1
+        if not self.ticks: raise Explosion
 
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
@@ -220,7 +229,9 @@ inst_tweaks = {
     (  0, 67): [Chord(0, 3,-5)], # Guitar chord
     (  0, 69): [Chord(0, 4, 7)], # Guitar chord
     (  0, 75): [Transpose(12)],
-    (  4, 34): [Transpose(24)]
+    (  4, 34): [Transpose(24)],
+    (  0, 94): [Transpose(5)],
+    (  0, 97): [Transpose(5)],
 }
 
 # auxiliary
@@ -610,7 +621,7 @@ def main():
     total_og_len = 0
     total_len = 0
 
-    bomb = 999 #.BOMB
+    bomb = Bomb(999)
 
     for file in os.listdir(os.fsencode(source_dir)):
         filename = os.fsdecode(file)
@@ -647,15 +658,19 @@ def main():
                     rest_time += msg.time
                 def queue(msg, ignore_rest=False):
                     if isinstance(msg, Iterable):
-                        for m in msg: queue(m)
-                        return msg_queue[-1]
+                        if len(msg) > 0:
+                            for m in msg: queue(m)
+                            return msg_queue[-1]
+                        else: return
                     if not ignore_rest:
                         nonlocal rest_time; msg.time += rest_time; rest_time = 0
                     msg_queue.append(msg)
                     return msg
                 def flush():
-                    track.extend(msg_queue)
-                    msg_queue.clear()
+                    if len(msg_queue) > 0:
+                        track.extend(msg_queue)
+                        msg_queue.clear()
+                    else: suppress(msg)
                 def queue_and_flush(msg):
                     queue(msg); flush()
                 def pop_time(msg):
@@ -741,20 +756,11 @@ def main():
 
                 if msg.type in ('note_on', 'note_off'):
                     if is_drums:
-                        channel = 9 if GM else msg.channel
-                        if msg.note in (56,35): # 56 is proper, 35 is different
-                            # if not aux
-                            if not rev_cym: queue(PC(15, 119, time = pop_time(msg))); rev_cym = True
-                            queue_and_flush(msg.copy(channel=15, note=60))
-                            continue
-
                         remap = drums_remap.get(msg.note)
                         bank = DEF_BANK
                         if remap is not None:
                             if isinstance(remap, Auxiliary):
-                                f = aux.fire(remap, msg)
-                                if f: queue_and_flush(f)
-                                else: suppress(msg)
+                                queue_and_flush(aux.fire(remap, msg))
                                 continue
                             else:
                                 bank = remap[0]
@@ -802,6 +808,7 @@ def main():
                                 dyn_perc.append(i)
                 
                 perc_count -= static_perc
+                print(perc_count)
                 for i in range(perc_count):
                     header += TOGGLE_DRUMS(peak_chan+i, True)
                     print("Channel %i: dynamic percussion allocated" % (peak_chan+i))
@@ -846,8 +853,7 @@ def main():
             #         print(msg, end=",  \n") #.MSGDUMP
             #     raise NameError
 
-            bomb -= 1 #.BOMB
-            if not bomb: raise NameError #.BOMB
+            bomb.tick()
 
             print("Message reduction:", f"{(len(track) / len(og_track)):.2%}", "(%i/%i)" % (len(track), len(og_track)))
             total_og_len += len(og_track)
