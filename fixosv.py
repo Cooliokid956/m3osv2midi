@@ -811,7 +811,8 @@ def main():
                 perc_count -= static_perc
                 print(perc_count)
                 for i in range(perc_count):
-                    header += TOGGLE_DRUMS(peak_chan+i, True)
+                    # header += TOGGLE_DRUMS(peak_chan+i, True)
+                    header += TOGGLE_DRUMS(min(peak_chan+i, 15), True) # THIS IS BROKEN!! bandaid fix, proper fix later
                     print("Channel %i: dynamic percussion allocated" % (peak_chan+i))
 
                 if perc_counts.get(perc_count) is None: perc_counts[perc_count] = [] # debug
