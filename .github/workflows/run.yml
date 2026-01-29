@@ -24,11 +24,7 @@ jobs:
           args: 
         - name: 
           args: --loop
-        conf:
-        - name: MIDI
-          args: 
-        - name: MSGS
-          args: --mode=msgs
+        mode: [MIDI, MSGS, GM, GM2, SC88]
 
     runs-on: ubuntu-latest
 
@@ -44,9 +40,9 @@ jobs:
         pip install mido
     - name: Generate files
       run: |
-        python fixosv.py ${{ matrix.conf.args }} ${{ matrix.loop.args }}
+        python fixosv.py --mode=${{ matrix.mode }} ${{ matrix.loop.args }}
     - name: Upload artifact
       uses: actions/upload-artifact@v4
       with:
-        name: OSV${{ matrix.conf.name }}${{ matrix.loop.name }}
+        name: OSV${{ matrix.mode }}${{ matrix.loop.name }}
         path: ./OSVMIDI
