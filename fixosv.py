@@ -309,6 +309,13 @@ drums_remap = {
     24: (56, 58), # SFX; Applause
     33: (48, 59), # Orchestra;
     35: ( 0, 43), # reverse cymbal
+    88: ( 0, 35), # kick
+
+    # may reconsider
+    117: ( 0, 42), # hi-hat closed
+    118: ( 0, 46), # hi-hat open
+    120: ( 0, 40), # snare
+
     56: RevCymbal(),
     60: Guitar(STRUM_ABMAJ_DN),
     61: Guitar(STRUM_ABMAJ_UP),
@@ -340,6 +347,9 @@ if SC88 or EXTRA_PATCH:
         23: (25,126), # Tah!
         24: (56, 91), # Small Club
         25: (56, 38), # pick scrape
+        28: (49, 57), # tabla
+        29: (49, 58), # tabla
+        30: (49, 59), # tabla
     })
 
 
@@ -752,11 +762,9 @@ def main():
                     else: suppress(msg)
                     continue
 
-                is_drums = msg.type in CHANNEL_EVENTS and chan_prog[msg.channel][0] == 128
-
                 if msg.type in ('note_on', 'note_off'):
-                    if is_drums:
-                        channel = 9 if GM else msg.channel
+                    if orig_prog[msg.channel][1] == 127:
+                        channel = 9 if chan_prog[msg.channel][0] == 128 and GM else msg.channel
                         remap = drums_remap.get(msg.note)
                         bank = DEF_BANK
                         if remap is not None:
