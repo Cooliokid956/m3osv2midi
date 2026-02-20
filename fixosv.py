@@ -136,6 +136,7 @@ inst_replace = {
     (  0, 11) : ( PIANO ),
     (  0, 22) : ( PIANO ),
     (  0,  1) : (  3,122), # wind
+    (  0,  2) : (  0, 42), # "cello"
     (  0, 61) : (  0, 60), # french horns
     (  0, 66) : (  0, 65), # replace sax
     (  0,  3) : (  0, 88), # synth min
@@ -215,6 +216,7 @@ class InstantCut:
         return queue
 
 inst_tweaks = {
+    (  0,  2): [Transpose(-12)], # "cello"
     (  0,  3): [Velocity(0.5), Chord(12, 15, 19)],
     (  0,  6): [Velocity(0.5), Chord(15, 19, 22)],
     (  0,  7): [Transpose(17)],
@@ -310,6 +312,7 @@ drums_remap = {
     33: (48, 59), # Orchestra;
     35: ( 0, 43), # reverse cymbal
     88: ( 0, 35), # kick
+    123: (56, 55), # heartbeat
 
     # may reconsider
     117: ( 0, 42), # hi-hat closed
@@ -774,7 +777,7 @@ def main():
                             else:
                                 bank = remap[0]
                                 msg.note = remap[1]
-                        if bank != drum_bank if SC88 else chan_prog[channel][1]:
+                        if bank != (drum_bank if SC88 else chan_prog[channel][1]):
                             queue(PC(msg.channel, bank, time = pop_time(msg)))
                             chan_prog[channel] = (128, bank)
                             drum_bank = bank
