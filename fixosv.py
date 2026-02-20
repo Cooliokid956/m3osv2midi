@@ -157,6 +157,7 @@ inst_replace = {
     (  0,126) : (  0, 18), # Rotary Organ
     (  0, 75) : (  8, 18), # Rotary Organ
     (  0,127) : (128,  0), # Percussion
+
     (  4, 31) : (  0, 63), # Synth Brass 2
     (  4, 34) : (  0, 11), # Xylophone
 }
@@ -307,9 +308,12 @@ class Guitar(Auxiliary):
             aux.guitar[msg.channel].on[note] += 1 if on else -1
         return q
 
+OK, NG = -1, -2
 drums_remap = {
+    4: (0, 85), # SFX; Applause
     24: (56, 58), # SFX; Applause
     33: (48, 59), # Orchestra;
+    34: NG, # "Bendy Hat", might be ethnic
     35: ( 0, 43), # reverse cymbal
     88: ( 0, 35), # kick
     123: (56, 55), # heartbeat
@@ -353,6 +357,9 @@ if SC88 or EXTRA_PATCH:
         28: (49, 57), # tabla
         29: (49, 58), # tabla
         30: (49, 59), # tabla
+
+        31: (49, 29), # snare roll
+        39: (49, 30), # snare "9"
     })
 
 
@@ -858,6 +865,7 @@ def main():
                             msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
                         i += 1
 
+            track.append(SYSEX("7E 7F 09 02"))
             header.extend(track)
             mid.tracks = [header]
 
