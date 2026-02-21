@@ -866,6 +866,7 @@ def main():
                             msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
                         i += 1
 
+            # track.append(SYSEX("7E 7F 09 02"))
             header.extend(track)
             mid.tracks = [header]
 
