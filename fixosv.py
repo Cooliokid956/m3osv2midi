@@ -781,6 +781,7 @@ def main():
                             if isinstance(remap, Auxiliary):
                                 queue_and_flush(aux.fire(remap, msg))
                                 continue
+                            elif type(remap) is int: pass
                             else:
                                 bank = remap[0]
                                 msg.note = remap[1]
@@ -865,7 +866,6 @@ def main():
                             msg.channel = dyn_perc_chan.get(msg.channel) or msg.channel
                         i += 1
 
-            track.append(SYSEX("7E 7F 09 02"))
             header.extend(track)
             mid.tracks = [header]
 
