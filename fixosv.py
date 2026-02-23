@@ -357,6 +357,9 @@ if SC88 or EXTRA_PATCH:
         28: (49, 57), # tabla
         29: (49, 58), # tabla
         30: (49, 59), # tabla
+        34: (49, 47), # "Bend Gong"
+        65: (49, 67), # "Timbales Low"
+        66: (49, 69), # "Timbales High"
 
         31: (49, 29), # snare roll
         39: (49, 30), # snare "9"
