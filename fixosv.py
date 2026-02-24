@@ -316,6 +316,7 @@ drums_remap = {
     34: NG, # "Bendy Hat", might be ethnic
     35: ( 0, 43), # reverse cymbal
     88: ( 0, 35), # kick
+    122: (56, 78), # chirping
     123: (56, 55), # heartbeat
 
     # may reconsider
@@ -357,6 +358,7 @@ if SC88 or EXTRA_PATCH:
         28: (49, 57), # tabla
         29: (49, 58), # tabla
         30: (49, 59), # tabla
+        32: (49, 45), # "Big Gong"
         34: (49, 47), # "Bend Gong"
         65: (49, 67), # "Timbales Low"
         66: (49, 69), # "Timbales High"
@@ -659,7 +661,7 @@ def main():
             bank_switch = False
 
             orig_prog = array((0, 0), 16)
-            chan_prog = array((0, 0), 16)
+            chan_prog = array((-1, 0), 16) if GM2 else array((0, 0), 16)
             drum_bank = DEF_BANK
             rev_cym = False
             aux = Auxiliary()
