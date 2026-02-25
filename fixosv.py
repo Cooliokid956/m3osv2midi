@@ -307,6 +307,33 @@ class Guitar(Auxiliary):
                 time = 0
             aux.guitar[msg.channel].on[note] += 1 if on else -1
         return q
+    
+class Tom(Auxiliary):
+    name = "tom"
+    def __init__(self, note):
+        self.note = note
+    def init(self, aux, msg):
+        if not aux.part(self):
+            aux.tom = array(T(
+                on = None
+            ), 16)
+        
+        if not aux.tom[msg.channel].on:
+            aux.tom[msg.channel].on = array(0, 128)
+            return [DRUMS(msg, False), PC(msg.channel, 117)]
+        
+    def fire(self, aux, msg):
+        chan = aux.tom[msg.channel].on
+        q = []
+        time = msg.time
+        on = msg.type == "note_on"
+        if on:
+            q.append(msg.copy(note = note, time = time))
+            time = 0
+        else:
+            q.append(Message("note_off", channel=msg.channel, note=note, time=time))
+            time = 0
+        return q
 
 OK, NG = -1, -2
 drums_remap = {
@@ -323,6 +350,13 @@ drums_remap = {
     117: ( 0, 42), # hi-hat closed
     118: ( 0, 46), # hi-hat open
     120: ( 0, 40), # snare
+
+    # 14: Tom(), TODO: find later
+    # 15: Tom(),
+    # 16: Tom(44),
+    # 17: Tom(51),
+    # 18: Tom(),
+    # 19: Tom(66),
 
     56: RevCymbal(),
     60: Guitar(STRUM_ABMAJ_DN),
