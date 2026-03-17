@@ -106,12 +106,20 @@ with open(target_dir + "ARGS.TXT", 'w') as f:
 def TOGGLE_DRUMS(chan, on):
     if GS:
         check_channel(chan)
+        pre = [0x41, 0x10, 0x42, 0x12]
+               # 65,   16,   66,   18
         xx = 0x11 + chan
         if chan == 9: xx = 0x10
         if chan  > 9: xx -= 1
-        yy = 0x1A - chan
-        data = [0x41, 0x10,0x42, 0x12, 0x40,xx, 0x15, (1 if on else 0), yy]
-                # 65,   16,  66,   18,   64,xx,   21, (off: 0, on:  1), yy
+        data = [0x40,xx, 0x15, (1 if on else 0)]
+                # 64,xx,   21, (1: on;off is 0)
+        sum = 0
+        for n in data:
+            sum += n & 0x7F
+        sum = [(128 - (sum & 127)) & 127]
+
+        data = pre + data + sum
+        data.append(sum) # checksum
 
         return [SYSEX(data)]
     elif GM2:
