@@ -752,17 +752,23 @@ def main():
 
                 # looping
                 if msg.type == 'marker':
-                    queue_and_flush(msg)
                     if LOOPS > 0:
                         match msg.text:
                             case "loopStart":
+                                queue_and_flush(msg)
                                 pre_loop_track = track
                                 track = MidiTrack()
+                                continue
                                 # pre_loop_perc_bank = perc_bank
                                 # queue_and_flush(PC(9, perc_bank)) # find a better way to do this
                             case "loopEnd":
+                                if len(track) > 0:
+                                    track[-1].time += pop_time(msg)
                                 pre_loop_track.extend(track * (LOOPS + 1))
                                 track = pre_loop_track
+                                queue_and_flush(msg)
+                                continue
+                    queue_and_flush(msg)
                     continue
 
                 if msg.type == 'sysex': suppress(msg); continue
