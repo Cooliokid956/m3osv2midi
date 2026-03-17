@@ -119,7 +119,6 @@ def TOGGLE_DRUMS(chan, on):
         sum = [(128 - (sum & 127)) & 127]
 
         data = pre + data + sum
-        data.append(sum) # checksum
 
         return [SYSEX(data)]
     elif GM2:
