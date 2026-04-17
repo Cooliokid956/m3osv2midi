@@ -1,0 +1,5 @@
+start "GS" "cmd /c ..\fixosv.py --in=.\OSV\ --out=.\OSVMIDI\ --loop --extra-patch --safe-name && pause"
+start "GM" "cmd /c ..\fixosv.py --in=.\OSV\ --out=.\OSVGM\ --loop --extra-patch --mode=gm --safe-name && pause"
+start "GM2" "cmd /c ..\fixosv.py --in=.\OSV\ --out=.\OSVGM2\ --loop --extra-patch --mode=gm2 --safe-name && pause"
+start "MSGS" "cmd /c ..\fixosv.py --in=.\OSV\ --out=.\OSVMSGS\ --loop --extra-patch --instant-cut --mode=msgs --safe-name && pause"
+start "SC" "cmd /c ..\fixosv.py --in=.\OSV\ --out=.\OSVSC\ --loop --mode=sc88 --safe-name && pause"

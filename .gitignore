@@ -1,1 +1,4 @@
-/OSVMIDI
+/OSV*
+!/OSV
+/extra/OSV*
+!/extra/OSV

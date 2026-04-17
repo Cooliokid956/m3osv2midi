@@ -1,0 +1,5 @@
+start "GS" "cmd /c fixosv.py --loop --extra-patch --safe-name && pause"
+start "GM" "cmd /c fixosv.py --loop --extra-patch --out=OSVGM --mode=gm --safe-name && pause"
+start "GM2" "cmd /c fixosv.py --loop --extra-patch --out=OSVGM2 --mode=gm2 --safe-name && pause"
+start "MSGS" "cmd /c fixosv.py --loop --extra-patch --instant-cut --out=OSVMSGS --mode=msgs --safe-name && pause"
+start "SC" "cmd /c fixosv.py --loop --out=OSVSC --mode=sc88 --safe-name && pause"

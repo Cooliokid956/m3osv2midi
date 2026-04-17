@@ -148,6 +148,7 @@ inst_replace = {
     (  0, 66) : (  0, 65), # replace sax
     (  0,  3) : (  0, 88), # synth min
     (  0,  6) : (  0, 88), # synth maj
+    (  0, 17) : (  5,122), # Percussion
     (  0,  7) : (  8, 80), # sine
     (  0,  9) : (  0,  8), # celesta
     (  0, 82) : (  1, 80), # square
@@ -156,6 +157,7 @@ inst_replace = {
     (  0, 85) : (  1, 80), # square
     (  0, 86) : (  1, 80), # square
     (  0, 87) : (  1, 80), # square
+    (  0, 94) : (  1, 80), # "custom", square for now
     (  0, 31) : (  0, 30), # DIST.guitar
     (  0, 44) : (  0, 47), # timpani
     (  0, 67) : (  8, 27), # Guitar chord
