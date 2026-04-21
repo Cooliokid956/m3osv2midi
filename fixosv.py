@@ -238,8 +238,8 @@ inst_tweaks = {
     (  0, 41): [Transpose(12)],
     (  0, 60): [Velocity(0.50)], #, Chord(12)],
     (  0, 61): [Velocity(0.85)], #, Chord(12)],
-    (  0, 67): [Chord(0, 3,-5)], # Guitar chord
-    (  0, 69): [Chord(0, 4, 7)], # Guitar chord
+    (  0, 67): [Velocity(0.5), Chord(0, 3,-5)], # Guitar chord
+    (  0, 69): [Velocity(0.5), Chord(0, 4, 7)], # Guitar chord
     (  0, 75): [Transpose(12)],
     (  4, 34): [Transpose(24)],
     (  0, 94): [Transpose(5)],
@@ -337,10 +337,10 @@ class Tom(Auxiliary):
         time = msg.time
         on = msg.type == "note_on"
         if on:
-            q.append(msg.copy(note = note, time = time))
+            q.append(msg.copy(note = self.note, time = time))
             time = 0
         else:
-            q.append(Message("note_off", channel=msg.channel, note=note, time=time))
+            q.append(Message("note_off", channel=msg.channel, note=self.note, time=time))
             time = 0
         return q
 
@@ -360,12 +360,12 @@ drums_remap = {
     118: ( 0, 46), # hi-hat open
     120: ( 0, 40), # snare
 
-    # 14: Tom(), TODO: find later
-    # 15: Tom(),
-    # 16: Tom(44),
-    # 17: Tom(51),
-    # 18: Tom(),
-    # 19: Tom(66),
+    14: Tom(45), # Note offset of -6 from sf to gm
+    15: Tom(48), # inst root = 66
+    16: Tom(52), # offset + split key - root
+    17: Tom(56), # 
+    18: Tom(60), # 
+    19: Tom(63), # 
 
     56: RevCymbal(),
     60: Guitar(STRUM_ABMAJ_DN),
