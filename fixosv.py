@@ -231,8 +231,8 @@ inst_tweaks = {
     (  0,  6): [Velocity(0.5), Chord(15, 19, 22)],
     (  0,  7): [Transpose(17)],
     (  0,  9): [Transpose(12)],
-    (  0, 11): [Velocity(0.7), Chord(0-12, 4-12, 7-12)], # Major
-    (  0, 22): [Velocity(0.7), Chord(-3, 0, 4-12)], # Minor
+    (  0, 11): [Chord(-24, -12, (-5, .91), 0, (4, .94))], # Major
+    (  0, 22): [Chord(-21, -15, (-3, .91), 0, (4, .82))], # Minor
     (  0, 31): [Chord(-15, -8)],
    #(  0, 34): [Transpose(24)],
     (  0, 41): [Transpose(12)],

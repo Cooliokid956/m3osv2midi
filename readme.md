@@ -38,3 +38,10 @@ This script was originally created to target Microsoft GS Wavetable Synth, due t
 
 ---
 Most instruments have already been replaced, but some don't have the best fit, and some chords are missing.
+
+---
+# Credits
+- @irikachana: Accurate midi recreations of certain samples
+- [NEWER VGM Sound Sources](https://docs.google.com/spreadsheets/d/1JJBlHHDc65fhZmKUGLrDTLCm6rfUU83-kbuD8Y0zU0o/edit)
+  - [Mother Series Sample Sheet](https://docs.google.com/spreadsheets/d/1cTZvbOULtDGrYfTDI8XPHS-6NganDyA-_zhzo2Be9Tg/edit)
+    - [Mother 3 Instrument Breakdown](https://docs.google.com/spreadsheets/d/1MRcE6Xp_lq5EzXKyYrFJ5DxMXKcOcQtRv2UrOxLQiiU/edit)
