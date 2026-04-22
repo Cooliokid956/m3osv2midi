@@ -157,7 +157,7 @@ inst_replace = {
     (  0, 85) : (  1, 80), # square
     (  0, 86) : (  1, 80), # square
     (  0, 87) : (  1, 80), # square
-    (  0, 94) : (  1, 80), # "custom", square for now
+    (  0, 94) : (  8, 80), # "custom" sine-ish wave? very aliased though
     (  0, 31) : (  0, 30), # DIST.guitar
     (  0, 44) : (  0, 47), # timpani
     (  0, 67) : (  8, 27), # Guitar chord
@@ -242,7 +242,6 @@ inst_tweaks = {
     (  0, 69): [Velocity(0.5), Chord(0, 4, 7)], # Guitar chord
     (  0, 75): [Transpose(12)],
     (  4, 34): [Transpose(24)],
-    (  0, 94): [Transpose(5)],
     (  0, 97): [Transpose(5)],
 }
 
@@ -332,17 +331,7 @@ class Tom(Auxiliary):
             return [DRUMS(msg, False), PC(msg.channel, 117)]
         
     def fire(self, aux, msg):
-        chan = aux.tom[msg.channel].on
-        q = []
-        time = msg.time
-        on = msg.type == "note_on"
-        if on:
-            q.append(msg.copy(note = self.note, time = time))
-            time = 0
-        else:
-            q.append(Message("note_off", channel=msg.channel, note=self.note, time=time))
-            time = 0
-        return q
+        return [msg.copy(note = self.note)]
 
 OK, NG = -1, -2
 drums_remap = {
