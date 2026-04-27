@@ -167,6 +167,10 @@ inst_replace = {
     (  0, 75) : (  8, 18), # Rotary Organ
     (  0,127) : (128,  0), # Percussion
 
+    # JV-1080
+    (  0,103) : (  0, 91), # Night Shade (stand-in)
+    (  0,109) : (  0,103), # Cyber Space (stand-in)
+
     (  4, 31) : (  0, 63), # Synth Brass 2
     (  4, 34) : (  0, 11), # Xylophone
 }
@@ -243,6 +247,7 @@ inst_tweaks = {
     (  0, 75): [Transpose(12)],
     (  4, 34): [Transpose(24)],
     (  0, 97): [Transpose(5)],
+    (  0,103): [Chord(0, 3, 6, 12)],
 }
 
 # auxiliary
