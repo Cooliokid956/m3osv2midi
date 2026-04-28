@@ -168,8 +168,21 @@ inst_replace = {
     (  0,127) : (128,  0), # Percussion
 
     # JV-1080
-    (  0,103) : (  0, 91), # Night Shade (stand-in)
-    (  0,109) : (  0,103), # Cyber Space (stand-in)
+    (  0,  5) : (  0,103), # Fantasia JV  (A-072) (stand-in)
+    (  0, 10) : (  0,103), # Wave Bells   (A-084) (stand-in)
+    (  0, 34) : (  0, 34), # Pick Bass    (B-009) (stand-in)
+    (  0, 54) : (  0,103), # Raverborg    (B-059) (stand-in)
+    (  0, 78) : (  0,103), # Fantasy Vox  (A-079) (stand-in)
+    (  0, 79) : (  0,103), # Cyber Space  (C-122) (stand-in)
+    (  0, 80) : (  0,103), # JP8Haunting  (C-072) (stand-in)
+    (  0, 97) : (  0,103), # Heirborne    (C-073) (stand-in)
+    (  0, 98) : (  0,103), # TeknoSoloVox (B-067) (stand-in)
+    (  0, 99) : (  0,103), # Spaced Voxx  (C-026) (stand-in)
+    (  0,103) : (  0, 91), # Night Shade  (C-117) (stand-in)
+    (  0,109) : (  0,103), # Cyber Space  (C-122) (stand-in)
+    (  0,110) : (  0,103), # Raggatronic  (B-051) (stand-in)
+    (  0,111) : (  0,103), # Dunes        (C-120) (stand-in)
+    (  0,112) : (  0,103), # Terminate    (C-128) (stand-in)
 
     (  4, 31) : (  0, 63), # Synth Brass 2
     (  4, 34) : (  0, 11), # Xylophone
@@ -382,7 +395,9 @@ if SC88 or EXTRA_PATCH:
         (  0,  6) : (  2, 88), # New Age
         (  0, 62) : (  2, 63), # Warm Brass
         (  0, 73) : (  1, 73), # Flute 2
+        (  0,101) : (  1,101), # Goblinson
         (  0,126) : ( 24, 18), # Rotary Organ
+
         (  4, 34) : (  9, 11), # Xylophone
     })
     drums_remap.update({
