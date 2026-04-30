@@ -1,3 +1,6 @@
+__pycache__/
+*.py[codz]
+
 /OSV*
 !/OSV
 /extra/OSV*
