@@ -1,0 +1,30 @@
+OLD TODO:
+    convert chord instruments to proper instrument, keep track of channel and append chord notes
+    bank switching! for special instruments
+    swap 10th channel to next free (16th), move gunshot notes to 10th channel
+    or enable drums mode on the fly?
+
+    it seems that's causing some panic (sudden stops, certain instruments are set to piano??),
+    so maybe let's try rerouting all note events on program 127 to channel 10
+
+    the results are amazing
+    let's do something about those guitar chords
+    one down, a few to go: 11, 22, 67, 69, 109??
+
+    "Welcome!" needs a lot of instruments fixed
+
+    haven't been writing this down but I've been reworking the event skip system and
+    have decided on dropping it altogether in favor of altered track reconstruction
+
+    there's slowdowns near chords now?
+    No longer! :D
+
+    let's keep working on those chords ..zZz
+    11, |> 22, 67, 69, 109
+
+    I should probably add GM Level 2 instrument names as well
+
+    Add more chords and introduce auxiliary channels (keep track of unused channels, begin airing before school open backstor ) 
+
+    10/22/2023, 6:12:15 PM
+    Those auxiliary channels exist in a certain way (dynamic drum channel allocation) but I'll still need to find a solution for things like the guitar chords

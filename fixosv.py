@@ -13,25 +13,10 @@ Usage: {sys.argv[0]} [--in=PATH] [--out=PATH] [--loop[s=#]] [--drums=#]
     sys.exit(0)
 
 from collections.abc import Iterable
-from mido import MidiFile, MidiTrack, Message, MetaMessage, merge_tracks # planned for use with guitar strum emulation
+from mido import MidiFile, MidiTrack, Message, MetaMessage, merge_tracks
 from mido.messages.checks import check_channel
 
-# miscellaneous helpers
-def clamp(x, a, b): return max(a,min(x, b))
-def array(init, len): return [init for _ in range(len)]
-
-class T:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-
-class Explosion(Exception): ...
-class Bomb:
-    def __init__(self, ticks):
-        self.ticks = ticks
-    def tick(self):
-        self.ticks -= 1
-        if not self.ticks: raise Explosion
+from utils import *
 
 os.system('cls' if os.name == "nt" else 'clear')
 print("MOTHER 3 OSV to MIDI\n")
@@ -77,16 +62,10 @@ def SYSEX(data):
             except ValueError: data = data[1:]
 
         data = data_list
-    # print(data)
     return Message("sysex", data = data)
 GM_SYSTEM_ON  = SYSEX("7E 7F 09 01")
 GM2_SYSTEM_ON = SYSEX("7E 7F 09 03")
 GS_RESET      = SYSEX("41 1042 12 40007F 0041")
-
-def PC(chan, prog, **args):
-    return Message("program_change", channel=chan, program=prog, **args)
-def CC(chan, cont, val, **args):
-    return Message("control_change", channel=chan, control=cont, value=val, **args)
 
 CHANNEL_EVENTS = ('note_on', 'note_off', 'polytouch', 'control_change', 'program_change', 'aftertouch', 'pitchwheel')
 ALTERED_EVENTS = ('note_on', 'note_off', 'control_change', 'program_change')
@@ -123,7 +102,7 @@ def TOGGLE_DRUMS(chan, on):
         return [SYSEX(data)]
     elif GM2:
         return [CC(chan, 0, (0x78 if on else 0x79)), CC(chan, 32, 0)]
-    return [SYSEX([0])]
+    return []
 
 HEADER_GS = [GS_RESET] + TOGGLE_DRUMS(9, False)
 headers = {
@@ -137,257 +116,12 @@ def DRUMS(msg, on):
     return MetaMessage("marker", text="drums"+("O" if on else "X")+str(msg.channel)) \
         if DEFER_DRUMS else TOGGLE_DRUMS(msg.channel, on)
 
-PIANO = ( 16,  0) # (  0,  0)
-inst_replace = {
-    (  0,  0) : ( PIANO ), # detuned (?)
-    (  0, 11) : ( PIANO ),
-    (  0, 22) : ( PIANO ),
-    (  0,  1) : (  3,122), # wind
-    (  0,  2) : (  0, 42), # "cello"
-    (  0, 61) : (  0, 60), # french horns
-    (  0, 66) : (  0, 65), # replace sax
-    (  0,  3) : (  0, 88), # synth min
-    (  0,  6) : (  0, 88), # synth maj
-    (  0, 17) : (  5,122), # Percussion
-    (  0,  7) : (  8, 80), # sine
-    (  0,  9) : (  0,  8), # celesta
-    (  0, 82) : (  1, 80), # square
-    (  0, 83) : (  1, 80), # square
-    (  0, 84) : (  1, 80), # square
-    (  0, 85) : (  1, 80), # square
-    (  0, 86) : (  1, 80), # square
-    (  0, 87) : (  1, 80), # square
-    (  0, 94) : (  8, 80), # "custom" sine-ish wave? very aliased though
-    (  0, 31) : (  0, 30), # DIST.guitar
-    (  0, 44) : (  0, 47), # timpani
-    (  0, 67) : (  8, 27), # Guitar chord
-    (  0, 69) : (  8, 27), # Guitar chord
-    (  0,120) : (  0, 30), # Dist.Guitar
-    (  0,126) : (  0, 18), # Rotary Organ
-    (  0, 75) : (  8, 18), # Rotary Organ
-    (  0,127) : (128,  0), # Percussion
+from tweaks import *
 
-    # JV-1080
-    (  0,  5) : (  0,103), # Fantasia JV  (A-072) (stand-in)
-    (  0, 10) : (  0,103), # Wave Bells   (A-084) (stand-in)
-    (  0, 34) : (  0, 34), # Pick Bass    (B-009) (stand-in)
-    (  0, 54) : (  0,103), # Raverborg    (B-059) (stand-in)
-    (  0, 78) : (  0,103), # Fantasy Vox  (A-079) (stand-in)
-    (  0, 79) : (  0,103), # Cyber Space  (C-122) (stand-in)
-    (  0, 80) : (  0,103), # JP8Haunting  (C-072) (stand-in)
-    (  0, 97) : (  0,103), # Heirborne    (C-073) (stand-in)
-    (  0, 98) : (  0,103), # TeknoSoloVox (B-067) (stand-in)
-    (  0, 99) : (  0,103), # Spaced Voxx  (C-026) (stand-in)
-    (  0,103) : (  0, 91), # Night Shade  (C-117) (stand-in)
-    (  0,109) : (  0,103), # Cyber Space  (C-122) (stand-in)
-    (  0,110) : (  0,103), # Raggatronic  (B-051) (stand-in)
-    (  0,111) : (  0,103), # Dunes        (C-120) (stand-in)
-    (  0,112) : (  0,103), # Terminate    (C-128) (stand-in)
-
-    (  4, 31) : (  0, 63), # Synth Brass 2
-    (  4, 34) : (  0, 11), # Xylophone
-}
 def get_inst(inst):
     replace = inst_replace.get(inst)
     if replace is None: return inst, False
     else: return replace, True
-
-# tweaks
-class Transpose:
-    def __init__(self, offset):
-        self.offset = offset
-    def process(self, queue):
-        for msg in queue:
-            if msg.type in ("note_on", "note_off"):
-                msg.note += self.offset
-        return queue
-
-class Velocity:
-    def __init__(self, mult):
-        self.mult = mult
-    def process(self, queue):
-        for msg in queue:
-            if msg.type in ("note_on", "note_off"):
-                msg.velocity = int(msg.velocity * self.mult)
-        return queue
-
-class Chord:
-    def __init__(self, *offsets):
-        self.offsets = []
-        for offset in offsets:
-            if type(offset) is not tuple:
-                offset = (offset, 1)
-            self.offsets.append(offset)
-    def process(self, queue):
-        q = []
-        for msg in queue:
-            if msg.type in ("note_on", "note_off"):
-                time = msg.time
-                for offset in self.offsets:
-                    note = clamp(msg.note + offset[0], 0, 127)
-                    velocity = int(msg.velocity * offset[1])
-
-                    q.append(msg.copy(note = note, velocity = velocity, time = time))
-                    time = 0
-            else: q.append(msg)
-        return q
-
-class InstantCut:
-    def process(queue):
-        q = []
-        for msg in queue:
-            if msg.type == "note_off":
-                q.append(Message(type = "note_on", channel = msg.channel, note = msg.note, velocity = 1, time = msg.time))
-                q.append(msg.copy(time = 0))
-            else: q.append(msg)
-        return queue
-
-inst_tweaks = {
-    (  0,  2): [Transpose(-12)], # "cello"
-    (  0,  3): [Velocity(0.5), Chord(12, 15, 19)],
-    (  0,  6): [Velocity(0.5), Chord(15, 19, 22)],
-    (  0,  7): [Transpose(17)],
-    (  0,  9): [Transpose(12)],
-    (  0, 11): [Chord(-24, -12, (-5, .91), 0, (4, .94))], # Major
-    (  0, 22): [Chord(-21, -15, (-3, .91), 0, (4, .82))], # Minor
-    (  0, 31): [Chord(-15, -8)],
-   #(  0, 34): [Transpose(24)],
-    (  0, 41): [Transpose(12)],
-    (  0, 60): [Velocity(0.50)], #, Chord(12)],
-    (  0, 61): [Velocity(0.85)], #, Chord(12)],
-    (  0, 67): [Velocity(0.5), Chord(0, 3,-5)], # Guitar chord
-    (  0, 69): [Velocity(0.5), Chord(0, 4, 7)], # Guitar chord
-    (  0, 75): [Transpose(12)],
-    (  4, 34): [Transpose(24)],
-    (  0, 97): [Transpose(5)],
-    (  0,103): [Chord(0, 3, 6, 12)],
-}
-
-# auxiliary
-class Auxiliary:
-    track = MidiTrack()
-    channel = 16
-    def __init__(self): pass
-
-    def part(self, part):
-        return getattr(self, part.name, None)
-
-    def fire(self, part, msg):
-        return (part.init(self, msg) or []) + part.fire(self, msg)
-            
-
-class RevCymbal(Auxiliary):
-    name = "revCymbal"
-    def __init__(self): pass
-    def init(self, aux, msg):
-        if not aux.part(self):
-            aux.channel -= 1
-            aux.revCymbal = T(chan=aux.channel)
-            return [PC(aux.channel, 119)]
-    def fire(self, aux, msg):
-        return [msg.copy(channel=aux.revCymbal.chan, note=60)]
-
-
-class Strum:
-    def __init__(self, *notes):
-        self.notes = notes
-
-STRUM_ABMAJ_DN = Strum(44, 48, 51, 56, 63)
-STRUM_ABMAJ_UP = Strum(48, 51, 56, 63, 68)
-STRUM_FMAJ_DN  = Strum(41, 45, 48, 53, 60)
-STRUM_FMAJ_UP  = Strum(45, 48, 53, 60, 65)
-STRUM_CMIN_DN  = Strum(36, 39, 43, 48, 55)
-STRUM_CMIN_UP  = Strum(39, 43, 48, 55, 60)
-STRUM_BB7TH_DN = Strum(46, 50, 53, 56, 65)
-STRUM_BB7TH_UP = Strum(50, 53, 56, 65, 70)
-STRUM_GBMIN_DN = Strum(42, 45, 49, 54, 61)
-STRUM_GBMIN_UP = Strum(45, 49, 54, 61, 66)
-STRUM_GAUG     = Strum(43, 47, 51, 55, 63)
-STRUM_DBDIM    = Strum(49, 52, 55, 61, 67)
-
-class Guitar(Auxiliary):
-    name = "guitar"
-    def __init__(self, strum):
-        self.notes = strum.notes
-    def init(self, aux, msg):
-        if not aux.part(self):
-            aux.guitar = array(T(
-                on = None
-            ), 16)
-        
-        if not aux.guitar[msg.channel].on:
-            aux.guitar[msg.channel].on = array(0, 128)
-            return [DRUMS(msg, False), PC(msg.channel, 25)]
-        
-    def fire(self, aux, msg):
-        chan = aux.guitar[msg.channel].on
-        q = []
-        time = msg.time
-        on = msg.type == "note_on"
-        for note in self.notes:
-            if on and chan[note]:
-                q.append(Message("note_off", channel=msg.channel, note=note, time=time))
-                time = 0
-            if on or chan[note] == 1:
-                q.append(msg.copy(note = note, time = time))
-                time = 0
-            aux.guitar[msg.channel].on[note] += 1 if on else -1
-        return q
-    
-class Tom(Auxiliary):
-    name = "tom"
-    def __init__(self, note):
-        self.note = note
-    def init(self, aux, msg):
-        if not aux.part(self):
-            aux.tom = array(T(
-                on = None
-            ), 16)
-        
-        if not aux.tom[msg.channel].on:
-            aux.tom[msg.channel].on = array(0, 128)
-            return [DRUMS(msg, False), PC(msg.channel, 117)]
-        
-    def fire(self, aux, msg):
-        return [msg.copy(note = self.note)]
-
-OK, NG = -1, -2
-drums_remap = {
-    4: (0, 85), # SFX; Applause
-    24: (56, 58), # SFX; Applause
-    33: (48, 59), # Orchestra;
-    34: NG, # "Bendy Hat", might be ethnic
-    35: ( 0, 43), # reverse cymbal
-    88: ( 0, 35), # kick
-    122: (56, 78), # chirping
-    123: (56, 55), # heartbeat
-
-    # may reconsider
-    117: ( 0, 42), # hi-hat closed
-    118: ( 0, 46), # hi-hat open
-    120: ( 0, 40), # snare
-
-    14: Tom(45), # Note offset of -6 from sf to gm
-    15: Tom(48), # inst root = 66
-    16: Tom(52), # offset + split key - root
-    17: Tom(56), # 
-    18: Tom(60), # 
-    19: Tom(63), # 
-
-    56: RevCymbal(),
-    60: Guitar(STRUM_ABMAJ_DN),
-    61: Guitar(STRUM_ABMAJ_UP),
-    71: Guitar(STRUM_FMAJ_DN),
-    72: Guitar(STRUM_FMAJ_UP),
-    76: Guitar(STRUM_CMIN_DN),
-    77: Guitar(STRUM_CMIN_UP),
-    78: Guitar(STRUM_BB7TH_DN),
-    79: Guitar(STRUM_BB7TH_UP),
-    124: Guitar(STRUM_GBMIN_DN),
-    125: Guitar(STRUM_GBMIN_UP),
-    126: Guitar(STRUM_GAUG),
-    127: Guitar(STRUM_DBDIM)
-}
 
 if SC88 or EXTRA_PATCH:
     inst_replace.update({
@@ -419,277 +153,10 @@ if SC88 or EXTRA_PATCH:
         39: (49, 30), # snare "9"
     })
 
+from instalias import inst_alias
 
-"""
-  TODO: convert chord instruments to proper instrument, keep track of channel and append chord notes
-        bank switching! for special instruments
-        swap 10th channel to next free (16th), move gunshot notes to 10th channel
-        or enable drums mode on the fly?
-
-        it seems that's causing some panic (sudden stops, certain instruments are set to piano??),
-        so maybe let's try rerouting all note events on program 127 to channel 10
-
-        the results are amazing
-        let's do something about those guitar chords
-        one down, a few to go: 11, 22, 67, 69, 109??
-
-        "Welcome!" needs a lot of instruments fixed
-
-        haven't been writing this down but I've been reworking the event skip system and
-        have decided on dropping it altogether in favor of altered track reconstruction
-
-        there's slowdowns near chords now?
-        No longer! :D
-
-        let's keep working on those chords ..zZz
-        11, |> 22, 67, 69, 109
-
-        I should probably add GM Level 2 instrument names as well
-
-        Add more chords and introduce auxiliary channels (keep track of unused channels, begin airing before school open backstor ) 
-
-        10/22/2023, 6:12:15 PM
-        Those auxiliary channels exist in a certain way (dynamic drum channel allocation) but I'll still need to find a solution for things like the guitar chords
-"""
-
-inst_name = {
-    (  0,  0): "Piano 1",
-    (  8,  0): "Piano 1",
-    ( 16,  0): "Piano 1d",
-    (  0,  1): "Piano 2",
-    (  8,  1): "Piano 2",
-    (  0,  2): "Piano 3",
-    (  8,  2): "Piano 3",
-    (  0,  3): "Honky-tonk",
-    (  8,  3): "Honky-tonk",
-    (  0,  4): "E.Piano 1",
-    (  8,  4): "Detuned EP 1",
-    ( 16,  4): "E.Piano 1v",
-    ( 24,  4): "60's E.Piano",
-    (  0,  5): "E.Piano 2",
-    (  8,  5): "Detuned EP 2",
-    ( 16,  5): "E.Piano 2v",
-    (  0,  6): "Harpsichord",
-    (  8,  6): "Coupled Hps.",
-    ( 16,  6): "Harpsichord",
-    ( 24,  6): "Harpsi.o",
-    (  0,  7): "Clav.",
-    (  0,  8): "Celesta",
-    (  0,  9): "Glockenspiel",
-    (  0, 10): "Music Box",
-    (  0, 11): "Vibraphone",
-    (  8, 11): "Vibraphone",
-    (  0, 12): "Marimba",
-    (  8, 12): "Marimba",
-    (  0, 13): "Xylophone",
-    (  0, 14): "Tubular-bell",
-    (  8, 14): "Church Bell",
-    (  9, 14): "Carillon",
-    (  0, 15): "Santur",
-    (  0, 16): "Organ 1",
-    (  8, 16): "Detuned Or.1",
-    ( 16, 16): "60's Organ 1",
-    ( 32, 16): "Organ 4",
-    (  0, 17): "Organ 2",
-    (  8, 17): "Detuned Or.2",
-    ( 32, 17): "Organ 5",
-    (  0, 18): "Organ 3",
-    (  0, 19): "Church Org.1",
-    (  8, 19): "Church Org.2",
-    ( 16, 19): "Church Org.3",
-    (  0, 20): "Reed Organ",
-    (  0, 21): "Accordion Fr",
-    (  8, 21): "Accordion It",
-    (  0, 22): "Harmonica",
-    (  0, 23): "Bandoneon",
-    (  0, 24): "Nylon-str.Gt",
-    (  8, 24): "Ukulele",
-    ( 16, 24): "Nylon Gt.o",
-    ( 32, 24): "Nylon Gt.2",
-    (  0, 25): "Steel-str.Gt",
-    (  8, 25): "12-str.Gt",
-    ( 16, 25): "Mandolin",
-    (  0, 26): "Jazz Gt.",
-    (  8, 26): "Hawaiian Gt.",
-    (  0, 27): "Clean Gt.",
-    (  8, 27): "Chorus Gt.",
-    (  0, 28): "Muted Gt.",
-    (  8, 28): "Funk Gt.",
-    ( 16, 28): "Funk Gt.2",
-    (  0, 29): "Overdrive Gt",
-    (  0, 30): "DistortionGt",
-    (  8, 30): "Feedback Gt.",
-    (  0, 31): "Gt.Harmonics",
-    (  8, 31): "Gt. Feedback",
-    (  0, 32): "Acoustic Bs.",
-    (  0, 33): "Fingered Bs.",
-    (  0, 34): "Picked Bs.",
-    (  0, 35): "Fretless Bs.",
-    (  0, 36): "Slap Bass 1",
-    (  0, 37): "Slap Bass 2",
-    (  0, 38): "Synth Bass 1",
-    (  1, 38): "SynthBass101",
-    (  8, 38): "Synth Bass 3",
-    (  0, 39): "Synth Bass 2",
-    (  8, 39): "Synth Bass 4",
-    ( 16, 39): "Rubber Bass",
-    (  0, 40): "Violin",
-    (  8, 40): "Slow Violin",
-    (  0, 41): "Viola",
-    (  0, 42): "Cello",
-    (  0, 43): "Contrabass",
-    (  0, 44): "Tremolo Str",
-    (  0, 45): "PizzicatoStr",
-    (  0, 46): "Harp",
-    (  0, 47): "Timpani",
-    (  0, 48): "Strings",
-    (  8, 48): "Orchestra",
-    (  0, 49): "Slow Strings",
-    (  0, 50): "Syn.Strings1",
-    (  8, 50): "Syn.Strings3",
-    (  0, 51): "Syn.Strings2",
-    (  0, 52): "Choir Aahs",
-    ( 32, 52): "Choir Aahs 2",
-    (  0, 53): "Voice Oohs",
-    (  0, 54): "SynVox",
-    (  0, 55): "OrchestraHit",
-    (  0, 56): "Trumpet",
-    (  0, 57): "Trombone",
-    (  1, 57): "Trombone 2",
-    (  0, 58): "Tuba",
-    (  0, 59): "MutedTrumpet",
-    (  0, 60): "French Horns",
-    (  1, 60): "Fr.Horn 2",
-    (  0, 61): "Brass 1",
-    (  8, 61): "Brass 2",
-    (  0, 62): "Synth Brass1",
-    (  8, 62): "Synth Brass3",
-    ( 16, 62): "AnalogBrass1",
-    (  0, 63): "Synth Brass2",
-    (  8, 63): "Synth Brass4",
-    ( 16, 63): "AnalogBrass2",
-    (  0, 64): "Soprano Sax",
-    (  0, 65): "Alto Sax",
-    (  0, 66): "Tenor Sax",
-    (  0, 67): "Baritone Sax",
-    (  0, 68): "Oboe",
-    (  0, 69): "English Horn",
-    (  0, 70): "Bassoon",
-    (  0, 71): "Clarinet",
-    (  0, 72): "Piccolo",
-    (  0, 73): "Flute",
-    (  0, 74): "Recorder",
-    (  0, 75): "Pan Flute",
-    (  0, 76): "Bottle Blow",
-    (  0, 77): "Shakuhachi",
-    (  0, 78): "Whistle",
-    (  0, 79): "Ocarina",
-    (  0, 80): "Square Wave",
-    (  1, 80): "Square",
-    (  8, 80): "Sine Wave",
-    (  0, 81): "Saw Wave",
-    (  1, 81): "Saw",
-    (  8, 81): "Doctor Solo",
-    (  0, 82): "Syn.Calliope",
-    (  0, 83): "Chiffer Lead",
-    (  0, 84): "Charang",
-    (  0, 85): "Solo Vox",
-    (  0, 86): "5th Saw Wave",
-    (  0, 87): "Bass & Lead",
-    (  0, 88): "Fantasia",
-    (  0, 89): "Warm Pad",
-    (  0, 90): "Polysynth",
-    (  0, 91): "Space Voice",
-    (  0, 92): "Bowed Glass",
-    (  0, 93): "Metal Pad",
-    (  0, 94): "Halo Pad",
-    (  0, 95): "Sweep Pad",
-    (  0, 96): "Ice Rain",
-    (  0, 97): "Soundtrack",
-    (  0, 98): "Crystal",
-    (  1, 98): "Syn Mallet",
-    (  0, 99): "Atmosphere",
-    (  0,100): "Brightness",
-    (  0,101): "Goblin",
-    (  0,102): "Echo Drops",
-    (  1,102): "Echo Bell",
-    (  2,102): "Echo Pan",
-    (  0,103): "Star Theme",
-    (  0,104): "Sitar",
-    (  1,104): "Sitar 2",
-    (  0,105): "Banjo",
-    (  0,106): "Shamisen",
-    (  0,107): "Koto",
-    (  8,107): "Taisho Koto",
-    (  0,108): "Kalimba",
-    (  0,109): "Bagpipe",
-    (  0,110): "Fiddle",
-    (  0,111): "Shanai",
-    (  0,112): "Tinkle Bell",
-    (  0,113): "Agogo",
-    (  0,114): "Steel Drums",
-    (  0,115): "Woodblock",
-    (  8,115): "Castanets",
-    (  0,116): "Taiko",
-    (  8,116): "Concert BD",
-    (  0,117): "Melo. Tom 1",
-    (  8,117): "Melo. Tom 2",
-    (  0,118): "Synth Drum",
-    (  8,118): "808 Tom",
-    (  9,118): "Elec Perc.",
-    (  0,119): "Reverse Cym.",
-    (  0,120): "Gt.FretNoise",
-    (  1,120): "Gt.Cut Noise",
-    (  2,120): "String Slap",
-    (  0,121): "Breath Noise",
-    (  1,121): "Fl.Key Click",
-    (  0,122): "Seashore",
-    (  1,122): "Rain",
-    (  2,122): "Thunder",
-    (  3,122): "Wind",
-    (  4,122): "Stream",
-    (  5,122): "Bubble",
-    (  0,123): "Bird",
-    (  1,123): "Dog",
-    (  2,123): "Horse-Gallop",
-    (  3,123): "Bird 2",
-    (  0,124): "Telephone 1",
-    (  1,124): "Telephone 2",
-    (  2,124): "DoorCreaking",
-    (  3,124): "Door",
-    (  4,124): "Scratch",
-    (  5,124): "Wind Chimes",
-    (  0,125): "Helicopter",
-    (  1,125): "Car-Engine",
-    (  2,125): "Car-Stop",
-    (  3,125): "Car-Pass",
-    (  4,125): "Car-Crash",
-    (  5,125): "Siren",
-    (  6,125): "Train",
-    (  7,125): "Jetplane",
-    (  8,125): "Starship",
-    (  9,125): "Burst Noise",
-    (  0,126): "Applause",
-    (  1,126): "Laughing",
-    (  2,126): "Screaming",
-    (  3,126): "Punch",
-    (  4,126): "Heart Beat",
-    (  5,126): "Footsteps",
-    (  0,127): "Gun Shot",
-    (  1,127): "Machine Gun",
-    (  2,127): "Lasergun",
-    (  3,127): "Explosion",
-
-    # SC-88
-    (  2, 88): "New Age",
-    (  1, 73): "Flute 2",
-    (  2, 63): "Warm Brass",
-    (  8, 27): "Chorus Gt.",
-    (  9, 11): "Vibraphones",
-    ( 24, 18): "RotaryOrg.F"
-}
 def get_inst_name(prog):
-    return inst_name.get(prog, f"Unknown ({prog[0]:03.0f}:{prog[1]:03.0f})")
+    return inst_alias.get(prog, f"Unknown ({prog[0]:03.0f}:{prog[1]:03.0f})")
 
 def main():
     converts = 0
@@ -821,6 +288,7 @@ def main():
                             queue(DRUMS(msg, False), True)
 
                         if chan_prog[msg.channel][0] != new_prog[0]:
+                            if GM2: queue(CC(msg.channel, 0, 0x79, time = 0))
                             queue(CC(msg.channel, CC_BANK, new_prog[0], time = pop_time(msg)))
                         chan_prog[msg.channel] = new_prog
                         msg.program = new_prog[1]
